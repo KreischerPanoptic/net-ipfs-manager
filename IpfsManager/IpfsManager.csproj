@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Authors>Dennis Soroka</Authors>
+    <Version>0.1.0</Version>
+    <RootNamespace>Ipfs.Manager</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageTags>ipfs peer-to-peer distributed file-system</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <Product>Ipfs.Manager</Product>
+    <PackageId>Ipfs.Manager</PackageId>
+    <Description>Bridge library between Ipfs.Engine, Ipfs.Core and Ipfs.Hypermedia. Used for creation, download and upload of .hyper files as well as regular IPFS entities.</Description>
+    <Copyright>© 2020 Dennis Soroka</Copyright>
+    <AssemblyName>Ipfs.Manager</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ipfs.Core" Version="0.56.0" />
+    <PackageReference Include="Ipfs.Engine" Version="0.14.0" />
+    <PackageReference Include="Ipfs.Hypermedia" Version="0.1.2" />
+    <PackageReference Include="Realm" Version="4.3.0" />
+    <PackageReference Include="Realm.Fody" Version="4.3.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\icon.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Models\Versions\" />
+    <Folder Include="Services\Versions\RealmService\" />
+    <Folder Include="Services\Versions\CommunicationService\" />
+  </ItemGroup>
+
+</Project>
