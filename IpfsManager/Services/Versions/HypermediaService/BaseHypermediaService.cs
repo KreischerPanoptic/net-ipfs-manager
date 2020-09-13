@@ -179,7 +179,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             string extension
         )
         {
-            Hypermedia.Hypermedia hypermedia = new Hypermedia.Hypermedia()
+            Hypermedia.Hypermedia hypermedia = new Hypermedia.Versions.ver010.Hypermedia010()
             {
                 Name = name,
                 Comment = comment,
@@ -669,10 +669,10 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             {
                 throw new ArgumentException("Metadata parent and Realm object parent does not match!", nameof(parent));
             }
-            string path = System.IO.Path.Combine(parent.InternalPath, $"{parent.Path}_blocks", $"{block.Key}.block");
+            string path = System.IO.Path.Combine(parent.InternalPath, $"{parent.Path}_blocks", $"{block.Path}.block");
             Models.Block realmBlock = new Models.Block
             {
-                Key = block.Key,
+                Path = block.Path,
                 Size = (long)block.Size,
                 Hash = block.Hash,
                 Priority = priority,
@@ -889,7 +889,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             {
                 Hypermedia.Block block = new Block
                 {
-                    Key = l.Id,
+                    Path = l.Id,
                     Size = (ulong)l.Size,
                     Parent = parent
                 };
@@ -926,7 +926,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
         private async Task<byte[]> GetBlockContent(Hypermedia.Block block)
         {
             List<byte> content = new List<byte>();
-            using (var stream = await _manager.Engine().FileSystem.GetAsync(block.Key, false))
+            using (var stream = await _manager.Engine().FileSystem.GetAsync(block.Path, false))
             {
                 int tmp = -1;
                 do

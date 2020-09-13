@@ -10,7 +10,7 @@ namespace Ipfs.Manager.Models
     {
         [PrimaryKey]
         [Indexed]
-        public string Key { get; set; }
+        public string Path { get; set; }
         [Indexed]
         public long Size { get; set; }
         [Indexed]
