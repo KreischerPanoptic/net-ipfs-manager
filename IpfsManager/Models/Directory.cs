@@ -107,5 +107,6 @@ namespace Ipfs.Manager.Models
                 }
             }
         }
+        public long Index { get; set; }
     }
 }

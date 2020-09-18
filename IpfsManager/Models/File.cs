@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Ipfs.Manager.Models
 {
-    public class File : RealmObject
+    public class File : RealmObject, IEntity
     {
         [PrimaryKey]
         [Indexed]
@@ -108,5 +108,6 @@ namespace Ipfs.Manager.Models
                 }
             }
         }
+        public long Index { get; set; }
     }
 }

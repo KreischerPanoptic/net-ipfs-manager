@@ -71,9 +71,21 @@ namespace Ipfs.Manager.Services
             string extension
         );
 
+        string[] TranslateHypermediaToIPFSLinks(Hypermedia.Hypermedia hypermedia);
+
+        Task<string[]> TranslateHypermediaToIPFSLinksAsync(Hypermedia.Hypermedia hypermedia);
+
+        string[] TranslateHypermediaToIPFSLinks(Hypermedia.Hypermedia hypermedia, bool isMetadataPreservationEnabled);
+
+        Task<string[]> TranslateHypermediaToIPFSLinksAsync(Hypermedia.Hypermedia hypermedia, bool isMetadataPreservationEnabled);
+
         string TranslateHypermediaToIPFSLink(Hypermedia.Hypermedia hypermedia);
 
         Task<string> TranslateHypermediaToIPFSLinkAsync(Hypermedia.Hypermedia hypermedia);
+
+        Hypermedia.Hypermedia CreateHypermediaWithPath(Hypermedia.Hypermedia hypermedia);
+
+        Task<Hypermedia.Hypermedia> CreateHypermediaWithPathAsync(Hypermedia.Hypermedia hypermedia);
 
         /// <summary>
         /// Function to created hypermedia with linked inside hypermedias asynchronously.
@@ -81,7 +93,7 @@ namespace Ipfs.Manager.Services
         /// <param name="hypermediaChain">
         /// First element in list is outer hypermedia for second, second is inner in outer first and outer for third and so on...
         /// </param>
-        /// <returns></returns>
+        /// <returns>Constructed hypermedia with inner hypermedias</returns>
         Task<Hypermedia.Hypermedia> ConstructWrappedHypermediaAsync(List<Hypermedia.Hypermedia> hypermediaChain);
         /// <summary>
         /// Function to created hypermedia with linked inside hypermedias

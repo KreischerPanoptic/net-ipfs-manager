@@ -89,5 +89,6 @@ namespace Ipfs.Manager.Models
             }
         }
         public string Version { get; set; }
+        public long Index { get; set; }
     }
 }

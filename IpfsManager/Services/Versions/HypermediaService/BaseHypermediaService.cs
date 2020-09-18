@@ -68,10 +68,12 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 hypermedia = await GetHypermediaFromIPFSLinkAsync(path);
                 return hypermedia;
             }
-            catch(ArgumentException a) { }
-
-            hypermedia = await TranslateRawIPFSToHypermediaAsync(path, name, comment, extension);
-            return hypermedia;
+            catch (ArgumentException a)
+            {
+                //WARNING: Unrecommended behaviour
+                hypermedia = await TranslateRawIPFSToHypermediaAsync(path, name, comment, extension);
+                return hypermedia;
+            }
         }
 
         public Hypermedia.Hypermedia GetHypermediaFromIPFSLink(string path)
@@ -113,33 +115,35 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 }
             }
             while (token.IsCancellationRequested);
-
-            if (files.Result.IsDirectory)
+            var result = await IsHypermediaEnabled(files.Result, files.Result.IsDirectory ? false : true);
+            if (result.Item1)
             {
-                var result = await IsHypermediaEnabled(files.Result, false);
-                if (result.Item1)
-                {
-                    return result.Item2;
-                }
-                else
-                {
-                    throw new ArgumentException($"{nameof(path)} not a valid hypermedia", nameof(path));
-                }
+                return result.Item2;
             }
             else
             {
-                var result = await IsHypermediaEnabled(files.Result, true);
-                if (result.Item1)
-                {
-                    return result.Item2;
-                }
-                else
-                {
-                    throw new ArgumentException($"{nameof(path)} not a valid hypermedia", nameof(path));
-                }
+                throw new ArgumentException($"{nameof(path)} not a valid hypermedia", nameof(path));
             }
         }
-
+        /// <summary>
+        /// Translates common IPFS link to Hypermedia format with parameter extension <see cref="String.Empty">empty</see> by default.
+        /// WARNING: This is highly unrecommended to use translation. It was added only for compatibility with common IPFS.
+        /// WARNING: Due to lack of metadata, translation is unpredictable. If IPFS objects
+        /// is wrapped with Directory - it will continue as always, but if not - corrupted metadata
+        /// will be in <see cref="Hypermedia.Hypermedia">Hypermedia</see> as well.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Hash">Hash</see> for
+        /// any entity, due to redundancy of proccess (it will basicly download all content just to create hash,
+        /// which can work on small IPFS entities, but won't be rational to use such approach for large ones). 
+        /// So any validation of Hash would be disabled if flag <see cref="Hypermedia.Hypermedia.IsRawIPFS">Raw IPFS</see> is set to true.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Topic">Topic</see> due to lack of <see cref="Hypermedia.Hypermedia.Hash">Hash</see>.
+        /// So all functionality of searching and adding such hypermedias to PubSub would be disables as well.
+        /// ADDITION: You might think that it's really bad method, yet it must be noted, that after downloading such "incomplete" Hypermedia
+        /// you can convert it to "complete" using regular <see cref="IUploadService">UploadService</see> FixHypermedia method (it won't cost you much of time, because most of parts already in your repository).
+        /// </summary>
+        /// <param name="path">IPFS entity path/link (highly recommended to use only links to directory wrapped entities)</param>
+        /// <param name="name">Name of the <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (and directory in which it would be stored)</param>
+        /// <param name="comment">Comment for <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (brief description, can be empty or null)</param>
+        /// <returns>Finished Hypermedia entitiy which could be used within this library</returns>
         public Hypermedia.Hypermedia TranslateRawIPFSToHypermedia
         (
            string path,
@@ -150,6 +154,25 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             return TranslateRawIPFSToHypermediaAsync(path, name, comment).Result;
         }
 
+        /// <summary>
+        /// Translates common IPFS link to Hypermedia format asynchronously with parameter extension <see cref="String.Empty">empty</see> by default.
+        /// WARNING: This is highly unrecommended to use translation. It was added only for compatibility with common IPFS.
+        /// WARNING: Due to lack of metadata, translation is unpredictable. If IPFS objects
+        /// is wrapped with Directory - it will continue as always, but if not - corrupted metadata
+        /// will be in <see cref="Hypermedia.Hypermedia">Hypermedia</see> as well.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Hash">Hash</see> for
+        /// any entity, due to redundancy of proccess (it will basicly download all content just to create hash,
+        /// which can work on small IPFS entities, but won't be rational to use such approach for large ones). 
+        /// So any validation of Hash would be disabled if flag <see cref="Hypermedia.Hypermedia.IsRawIPFS">Raw IPFS</see> is set to true.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Topic">Topic</see> due to lack of <see cref="Hypermedia.Hypermedia.Hash">Hash</see>.
+        /// So all functionality of searching and adding such hypermedias to PubSub would be disables as well.
+        /// ADDITION: You might think that it's really bad method, yet it must be noted, that after downloading such "incomplete" Hypermedia
+        /// you can convert it to "complete" using regular <see cref="IUploadService">UploadService</see> FixHypermedia method (it won't cost you much of time, because most of parts already in your repository).
+        /// </summary>
+        /// <param name="path">IPFS entity path/link (highly recommended to use only links to directory wrapped entities)</param>
+        /// <param name="name">Name of the <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (and directory in which it would be stored)</param>
+        /// <param name="comment">Comment for <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (brief description, can be empty or null)</param>
+        /// <returns>Task with finished Hypermedia entitiy which could be used within this library</returns>
         public async Task<Hypermedia.Hypermedia> TranslateRawIPFSToHypermediaAsync
         (
            string path,
@@ -160,6 +183,26 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             return await TranslateRawIPFSToHypermediaAsync(path, name, comment, string.Empty);
         }
 
+        /// <summary>
+        /// Translates common IPFS link to Hypermedia format.
+        /// WARNING: This is highly unrecommended to use translation. It was added only for compatibility with common IPFS.
+        /// WARNING: Due to lack of metadata, translation is unpredictable. If IPFS objects
+        /// is wrapped with Directory - it will continue as always, but if not - corrupted metadata
+        /// will be in <see cref="Hypermedia.Hypermedia">Hypermedia</see> as well.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Hash">Hash</see> for
+        /// any entity, due to redundancy of proccess (it will basicly download all content just to create hash,
+        /// which can work on small IPFS entities, but won't be rational to use such approach for large ones). 
+        /// So any validation of Hash would be disabled if flag <see cref="Hypermedia.Hypermedia.IsRawIPFS">Raw IPFS</see> is set to true.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Topic">Topic</see> due to lack of <see cref="Hypermedia.Hypermedia.Hash">Hash</see>.
+        /// So all functionality of searching and adding such hypermedias to PubSub would be disables as well.
+        /// ADDITION: You might think that it's really bad method, yet it must be noted, that after downloading such "incomplete" Hypermedia
+        /// you can convert it to "complete" using regular <see cref="IUploadService">UploadService</see> FixHypermedia method (it won't cost you much of time, because most of parts already in your repository).
+        /// </summary>
+        /// <param name="path">IPFS entity path/link (highly recommended to use only links to directory wrapped entities)</param>
+        /// <param name="name">Name of the <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (and directory in which it would be stored)</param>
+        /// <param name="comment">Comment for <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (brief description, can be empty or null)</param>
+        /// <param name="extension">Default extension for <see cref="Hypermedia.File"/>Files</see> if IPFS link not Directory wrapped (if you sure it won't be needed - pass <see cref="null"/>)</param>
+        /// <returns>Finished Hypermedia entitiy which could be used within this library</returns>
         public Hypermedia.Hypermedia TranslateRawIPFSToHypermedia
         (
             string path,
@@ -171,6 +214,26 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             return TranslateRawIPFSToHypermediaAsync(path, name, comment, extension).Result;
         }
 
+        /// <summary>
+        /// Translates common IPFS link to Hypermedia format asynchronously.
+        /// WARNING: This is highly unrecommended to use translation. It was added only for compatibility with common IPFS.
+        /// WARNING: Due to lack of metadata, translation is unpredictable. If IPFS objects
+        /// is wrapped with Directory - it will continue as always, but if not - corrupted metadata
+        /// will be in <see cref="Hypermedia.Hypermedia">Hypermedia</see> as well.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Hash">Hash</see> for
+        /// any entity, due to redundancy of proccess (it will basicly download all content just to create hash,
+        /// which can work on small IPFS entities, but won't be rational to use such approach for large ones). 
+        /// So any validation of Hash would be disabled if flag <see cref="Hypermedia.Hypermedia.IsRawIPFS">Raw IPFS</see> is set to true.
+        /// WARNING: It doesn't creates <see cref="Hypermedia.Hypermedia.Topic">Topic</see> due to lack of <see cref="Hypermedia.Hypermedia.Hash">Hash</see>.
+        /// So all functionality of searching and adding such hypermedias to PubSub would be disables as well.
+        /// ADDITION: You might think that it's really bad method, yet it must be noted, that after downloading such "incomplete" Hypermedia
+        /// you can convert it to "complete" using regular <see cref="IUploadService">UploadService</see> FixHypermedia method (it won't cost you much of time, because most of parts already in your repository).
+        /// </summary>
+        /// <param name="path">IPFS entity path/link (highly recommended to use only links to directory wrapped entities)</param>
+        /// <param name="name">Name of the <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (and directory in which it would be stored)</param>
+        /// <param name="comment">Comment for <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity (brief description, can be empty or null)</param>
+        /// <param name="extension">Default extension for <see cref="Hypermedia.File"/>Files</see> if IPFS link not Directory wrapped (if you sure it won't be needed - pass <see cref="null"/>)</param>
+        /// <returns>Task with finished Hypermedia entitiy which could be used within this library</returns>
         public async Task<Hypermedia.Hypermedia> TranslateRawIPFSToHypermediaAsync
         (
             string path,
@@ -179,6 +242,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             string extension
         )
         {
+            //TODO: Add auto parsing of Hypermedias within IPFS link
             Hypermedia.Hypermedia hypermedia = new Hypermedia.Versions.ver010.Hypermedia010()
             {
                 Name = name,
@@ -230,10 +294,11 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             }
             else
             {
-                //If raw IPFS link is non directory wrapped - errors may occur
-                if (files.Result.Links.Count() <= 0) //TODO test it on non-folder object or folder->folder object and change logic
+                hypermedia.IsDirectoryWrapped = false;
+                //TODO: Dangerous zone. Metadata non parsed at any way, because there is no metadata. Default name and extension would be
+                //passed instead to make attempt of correct translation (because default name QmAjfdfg... without extension - not a good approach)
+                if (files.Result.Links.Count() <= 0)
                 {
-                    hypermedia.IsDirectoryWrapped = false;
                     Hypermedia.File file = new Hypermedia.File
                     {
                         Path = files.Result.Id,
@@ -244,7 +309,6 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                         LastModifiedDateTime = DateTime.Now,
                         Size = (ulong)files.Result.Size
                     };
-                    file.SetHash(await GetFileContent(file));
                     hypermedia.Entities.AddWithParent(file, hypermedia);
                     hypermedia.Size = GetRawHypermediaSize(hypermedia);
                 }
@@ -261,34 +325,206 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                         Size = (ulong)files.Result.Size
                     };
                     file.Blocks = await ExtractBlocksAsync(files.Result, file);
-                    file.SetHash();
                     hypermedia.Entities.AddWithParent(file, hypermedia);
                     hypermedia.Size = GetRawHypermediaSize(hypermedia);
                 }
             }
-            hypermedia.SetHash();
-            hypermedia.SetTopic();
             return hypermedia;
+        }
+
+        /// <summary>
+        /// Translates <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity to regular IPFS Links.
+        /// WARNING: Only <see cref="Hypermedia.Hypermedia.IsDirectoryWrapped">Directory wrapped</see> Hypermedias can be translated,
+        /// due to metadata preservation (non Directory wrapped entities can't store names and extensions in regular IPFS) and will always throw an Exception.
+        /// But you can override it by setting parameter isMetadataPreservationEnabled to false (highly unrecommended).
+        /// </summary>
+        /// <param name="hypermedia">Hypermedia to be translated to link</param>
+        /// <returns>List of links in <see cref="Ipfs.Cid">CID</see> format</returns>
+        public string[] TranslateHypermediaToIPFSLinks(Hypermedia.Hypermedia hypermedia)
+        {
+            return TranslateHypermediaToIPFSLinks(hypermedia, true);
+        }
+
+        /// <summary>
+        /// Translates <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity to regular IPFS Links asynchronously.
+        /// WARNING: Only <see cref="Hypermedia.Hypermedia.IsDirectoryWrapped">Directory wrapped</see> Hypermedias can be translated,
+        /// due to metadata preservation (non Directory wrapped entities can't store names and extensions in regular IPFS) and will always throw an Exception.
+        /// But you can override it by setting parameter isMetadataPreservationEnabled to false (highly unrecommended).
+        /// </summary>
+        /// <param name="hypermedia">Hypermedia to be translated to link</param>
+        /// <returns>Task with list of links in <see cref="Ipfs.Cid">CID</see> format</returns>
+        public Task<string[]> TranslateHypermediaToIPFSLinksAsync(Hypermedia.Hypermedia hypermedia)
+        {
+            return TranslateHypermediaToIPFSLinksAsync(hypermedia, true);
+        }
+
+        /// <summary>
+        /// Translates <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity to regular IPFS Links.
+        /// WARNING: Only <see cref="Hypermedia.Hypermedia.IsDirectoryWrapped">Directory wrapped</see> Hypermedias can be translated,
+        /// due to metadata preservation (non Directory wrapped entities can't store names and extensions in regular IPFS) and will always throw an Exception.
+        /// But you can override it by setting parameter isMetadataPreservationEnabled to false (highly unrecommended).
+        /// </summary>
+        /// <param name="hypermedia">Hypermedia to be translated to link</param>
+        /// <param name="isMetadataPreservationEnabled">Flag for default behaviour in translation. By default is true - which means
+        /// that non directory wrapped hypermedias would throw an Exception.</param>
+        /// <returns>List of links in <see cref="Ipfs.Cid">CID</see> format</returns>
+        public string[] TranslateHypermediaToIPFSLinks(Hypermedia.Hypermedia hypermedia, bool isMetadataPreservationEnabled)
+        {
+            if(hypermedia.IsDirectoryWrapped)
+            {
+                var links = new List<string>();
+                foreach(var e in hypermedia.Entities)
+                {
+                    links.Add(e.Path);
+                }
+                return links.ToArray();
+            }
+            else
+            {
+                if (isMetadataPreservationEnabled)
+                {
+                    throw new ArgumentException("Only directory wrapped entities can be translated to IPFS link with metadata preservation", nameof(hypermedia.IsDirectoryWrapped));
+                }
+                else
+                {
+                    var links = new List<string>();
+                    foreach (var e in hypermedia.Entities)
+                    {
+                        links.Add(e.Path);
+                    }
+                    return links.ToArray();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Translates <see cref="Hypermedia.Hypermedia">Hypermedia</see> entity to regular IPFS Links asynchronously.
+        /// WARNING: Only <see cref="Hypermedia.Hypermedia.IsDirectoryWrapped">Directory wrapped</see> Hypermedias can be translated,
+        /// due to metadata preservation (non Directory wrapped entities can't store names and extensions in regular IPFS) and will always throw an Exception.
+        /// But you can override it by setting parameter isMetadataPreservationEnabled to false (highly unrecommended).
+        /// </summary>
+        /// <param name="hypermedia">Hypermedia to be translated to link</param>
+        /// <param name="isMetadataPreservationEnabled">Flag for default behaviour in translation. By default is true - which means
+        /// that non directory wrapped hypermedias would throw an Exception.</param>
+        /// <returns>Task with list of links in <see cref="Ipfs.Cid">CID</see> format</returns>
+        public async Task<string[]> TranslateHypermediaToIPFSLinksAsync(Hypermedia.Hypermedia hypermedia, bool isMetadataPreservationEnabled)
+        {
+            return await Task.Run(() =>
+            {
+                return TranslateHypermediaToIPFSLinks(hypermedia, isMetadataPreservationEnabled);
+            });
         }
 
         public string TranslateHypermediaToIPFSLink(Hypermedia.Hypermedia hypermedia)
         {
-            if(hypermedia.IsDirectoryWrapped)
+            if (hypermedia.Path != null)
             {
                 return hypermedia.Path;
             }
             else
             {
-                throw new ArgumentException("Only directory wrapped entities can be translated to IPFS link with metadata preservation", nameof(hypermedia.IsDirectoryWrapped));
+                return CreateHypermediaWithPath(hypermedia).Path;
             }
         }
 
         public async Task<string> TranslateHypermediaToIPFSLinkAsync(Hypermedia.Hypermedia hypermedia)
         {
-            return await Task.Run(() =>
+            if (hypermedia.Path != null)
             {
-                return TranslateHypermediaToIPFSLink(hypermedia);
-            });
+                return hypermedia.Path;
+            }
+            else
+            {
+                return (await CreateHypermediaWithPathAsync(hypermedia)).Path;
+            }
+        }
+
+        public Hypermedia.Hypermedia CreateHypermediaWithPath(Hypermedia.Hypermedia hypermedia)
+        {
+            Task<IFileSystemNode> file;
+            CancellationToken token;
+
+            using (var stream = new System.IO.MemoryStream()) 
+            {
+                Hypermedia.Hypermedia.Serialize(stream, hypermedia);
+                do
+                {
+                    CancellationTokenSource source = new CancellationTokenSource();
+                    token = source.Token;
+                    //TODO: Check if works.
+                    file = _manager.Engine().FileSystem.AddAsync(stream, "metadata.hyper", new AddFileOptions { Pin = true, Wrap = true, Trickle = true, RawLeaves = true });
+
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    bool isTimeout = false, isTaskCompleted = false;
+
+                    while (!isTimeout && !isTaskCompleted)
+                    {
+                        if (stopwatch.Elapsed >= TimeSpan.FromMinutes(1))
+                        {
+                            isTimeout = true;
+                            if (file.Status != TaskStatus.RanToCompletion)
+                            {
+                                source.Cancel();
+                                break;
+                            }
+                        }
+
+                        if (file.Status == TaskStatus.RanToCompletion)
+                        {
+                            isTaskCompleted = true;
+                            break;
+                        }
+                    }
+                }
+                while (token.IsCancellationRequested);
+            }
+            hypermedia.Path = file.Result.Id;
+            return hypermedia;
+        }
+
+        public async Task<Hypermedia.Hypermedia> CreateHypermediaWithPathAsync(Hypermedia.Hypermedia hypermedia)
+        {
+            Task<IFileSystemNode> file;
+            CancellationToken token;
+
+            using (var stream = new System.IO.MemoryStream())
+            {
+                await Hypermedia.Hypermedia.SerializeAsync(stream, hypermedia);
+                do
+                {
+                    CancellationTokenSource source = new CancellationTokenSource();
+                    token = source.Token;
+                    //TODO: Check if works.
+                    file = _manager.Engine().FileSystem.AddAsync(stream, "metadata.hyper", new AddFileOptions { Pin = true, Wrap = true, Trickle = true, RawLeaves = true });
+
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    bool isTimeout = false, isTaskCompleted = false;
+
+                    while (!isTimeout && !isTaskCompleted)
+                    {
+                        if (stopwatch.Elapsed >= TimeSpan.FromMinutes(1))
+                        {
+                            isTimeout = true;
+                            if (file.Status != TaskStatus.RanToCompletion)
+                            {
+                                source.Cancel();
+                                break;
+                            }
+                        }
+
+                        if (file.Status == TaskStatus.RanToCompletion)
+                        {
+                            isTaskCompleted = true;
+                            break;
+                        }
+                    }
+                }
+                while (token.IsCancellationRequested);
+            }
+            hypermedia.Path = file.Result.Id;
+            return hypermedia;
         }
 
         public async Task<Hypermedia.Hypermedia> ConstructWrappedHypermediaAsync(List<Hypermedia.Hypermedia> hypermediaChain)
@@ -899,7 +1135,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             return blocks;
         }
 
-        private async Task<byte[]> GetFileContent(Hypermedia.File file)
+        /*private async Task<byte[]> GetFileContent(Hypermedia.File file)
         {
             if(!file.IsSingleBlock)
             {
@@ -941,80 +1177,149 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 throw new ArgumentException("Unexpected size", nameof(block.Size));
             }
             return content.ToArray();
-        }
+        }*/
 
         private async Task<(bool, Hypermedia.Hypermedia)> IsHypermediaEnabled(IFileSystemNode node, bool IsAggressiveParsingEnabled)
         {
-            var links = node.Links;
             bool isMetadataFound = false;
             bool isSerializationValid = false;
             Hypermedia.Hypermedia hypermedia = null;
 
-            foreach (var l in links)
+            if(node.IsDirectory)
             {
-                if (l.Name.EndsWith(".hyper"))
+                var links = node.Links;
+                foreach (var l in links)
                 {
-                    isMetadataFound = true;
-                    try
+                    if (l.Name.EndsWith(".hyper"))
                     {
-                        Task<System.IO.Stream> stream = null;
-                        CancellationToken token;
-
-                        do
+                        isMetadataFound = true;
+                        try
                         {
-                            CancellationTokenSource source = new CancellationTokenSource();
-                            token = source.Token;
-                            stream = _manager.Engine().FileSystem.GetAsync(l.Id, false);
+                            Task<System.IO.Stream> stream = null;
+                            CancellationToken token;
 
-                            Stopwatch stopwatch = new Stopwatch();
-                            stopwatch.Start();
-                            bool isTimeout = false, isTaskCompleted = false;
-
-                            while (!isTimeout && !isTaskCompleted)
+                            do
                             {
-                                if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                                CancellationTokenSource source = new CancellationTokenSource();
+                                token = source.Token;
+                                stream = _manager.Engine().FileSystem.GetAsync(l.Id, false);
+
+                                Stopwatch stopwatch = new Stopwatch();
+                                stopwatch.Start();
+                                bool isTimeout = false, isTaskCompleted = false;
+
+                                while (!isTimeout && !isTaskCompleted)
                                 {
-                                    isTimeout = true;
-                                    if (stream.Status != TaskStatus.RanToCompletion)
+                                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
                                     {
-                                        source.Cancel();
+                                        isTimeout = true;
+                                        if (stream.Status != TaskStatus.RanToCompletion)
+                                        {
+                                            source.Cancel();
+                                            break;
+                                        }
+                                    }
+
+                                    if (stream.Status == TaskStatus.RanToCompletion)
+                                    {
+                                        isTaskCompleted = true;
                                         break;
                                     }
                                 }
 
-                                if (stream.Status == TaskStatus.RanToCompletion)
+                                using (var buffer = stream.Result)
                                 {
-                                    isTaskCompleted = true;
-                                    break;
+                                    try
+                                    {
+                                        hypermedia = await Hypermedia.Hypermedia.DeserializeAsync(buffer);
+                                        isSerializationValid = true;
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        isSerializationValid = false;
+                                    }
                                 }
                             }
+                            while (token.IsCancellationRequested);
+                        }
+                        catch (Exception e)
+                        {
+                            isMetadataFound = false;
+                        }
+                        break;
+                    }
+                }
 
-                            using (var buffer = stream.Result)
+                if (!isMetadataFound && IsAggressiveParsingEnabled)
+                {
+                    foreach (var l in links)
+                    {
+                        try
+                        {
+                            Task<System.IO.Stream> stream = null;
+                            CancellationToken token;
+
+                            do
                             {
-                                try
+                                CancellationTokenSource source = new CancellationTokenSource();
+                                token = source.Token;
+                                stream = _manager.Engine().FileSystem.GetAsync(l.Id, false);
+
+                                Stopwatch stopwatch = new Stopwatch();
+                                stopwatch.Start();
+                                bool isTimeout = false, isTaskCompleted = false;
+
+                                while (!isTimeout && !isTaskCompleted)
                                 {
-                                    hypermedia = await Hypermedia.Hypermedia.DeserializeAsync(buffer);
-                                    isSerializationValid = true;
+                                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                                    {
+                                        isTimeout = true;
+                                        if (stream.Status != TaskStatus.RanToCompletion)
+                                        {
+                                            source.Cancel();
+                                            break;
+                                        }
+                                    }
+
+                                    if (stream.Status == TaskStatus.RanToCompletion)
+                                    {
+                                        isTaskCompleted = true;
+                                        break;
+                                    }
                                 }
-                                catch(Exception e)
+
+                                using (var buffer = stream.Result)
                                 {
-                                    isSerializationValid = false;
+                                    try
+                                    {
+                                        hypermedia = await Hypermedia.Hypermedia.DeserializeAsync(buffer);
+                                        isSerializationValid = true;
+                                        isMetadataFound = true;
+                                        break;
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        isSerializationValid = false;
+                                        isMetadataFound = false;
+                                    }
                                 }
+                            }
+                            while (token.IsCancellationRequested);
+                            if (isMetadataFound && isSerializationValid)
+                            {
+                                break;
                             }
                         }
-                        while (token.IsCancellationRequested);
+                        catch (Exception e)
+                        {
+                            isMetadataFound = false;
+                        }
                     }
-                    catch (Exception e)
-                    {
-                        isMetadataFound = false;
-                    }
-                    break;
                 }
             }
-
-            if(!isMetadataFound && IsAggressiveParsingEnabled)
+            else
             {
-                foreach (var l in links)
+                if (IsAggressiveParsingEnabled)
                 {
                     try
                     {
@@ -1025,7 +1330,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                         {
                             CancellationTokenSource source = new CancellationTokenSource();
                             token = source.Token;
-                            stream = _manager.Engine().FileSystem.GetAsync(l.Id, false);
+                            stream = _manager.Engine().FileSystem.GetAsync(node.Id, false);
 
                             Stopwatch stopwatch = new Stopwatch();
                             stopwatch.Start();
@@ -1067,17 +1372,18 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                             }
                         }
                         while (token.IsCancellationRequested);
-                        if(isMetadataFound && isSerializationValid)
-                        {
-                            break;
-                        }
                     }
                     catch (Exception e)
                     {
                         isMetadataFound = false;
                     }
                 }
+                else
+                {
+                    return (false, null);
+                }
             }
+           
             return (isMetadataFound && isSerializationValid, hypermedia);
         }
 

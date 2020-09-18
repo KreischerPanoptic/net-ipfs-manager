@@ -32,5 +32,6 @@ namespace Ipfs.Manager.Models
         [Indexed]
         public string Hash { get; set; }
         public File Parent { get; set; }
+        public long Index { get; set; }
     }
 }

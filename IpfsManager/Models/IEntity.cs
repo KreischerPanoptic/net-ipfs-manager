@@ -11,5 +11,6 @@ namespace Ipfs.Manager.Models
         long Size { get; set; }
         string Hash { get; }
         IEntity Parent { get; set; }
+        long Index { get; set; }
     }
 }
