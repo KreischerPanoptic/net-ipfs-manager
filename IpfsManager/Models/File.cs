@@ -41,6 +41,9 @@ namespace Ipfs.Manager.Models
                 }
             }
         }
+        [Ignored]
+        public Progress<double> Progress { get; }
+        public double ProgressRaw { get; set; }
         [Indexed]
         public string InternalPath { get; set; }
         public int PriorityRaw { get; set; }
@@ -109,5 +112,15 @@ namespace Ipfs.Manager.Models
             }
         }
         public long Index { get; set; }
+
+        public File()
+        {
+            Progress = new Progress<double>(ChangeProgressRaw);
+        }
+
+        private void ChangeProgressRaw(double percent)
+        {
+            ProgressRaw = percent;
+        }
     }
 }

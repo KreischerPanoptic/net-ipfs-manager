@@ -16,8 +16,8 @@ namespace Ipfs.Manager.Models
         public string Comment { get; set; }
         public string EncodingRaw { get; set; } = Encoding.UTF8.WebName;
         [Ignored]
-        public Encoding Encoding 
-        { 
+        public Encoding Encoding
+        {
             get
             {
                 return System.Text.Encoding.GetEncoding(EncodingRaw);
@@ -32,8 +32,10 @@ namespace Ipfs.Manager.Models
         public bool IsAttributesPreservationEnabled { get; set; }
         public bool IsContinuousDownloadingEnabled { get; set; }
         public IList<Tag> Tags { get; }
-        public Tag MainTag{ get; set; }
-        public double Progress { get; set; }
+        public Tag MainTag { get; set; }
+        [Ignored]
+        public Progress<double> Progress { get; }
+        public double ProgressRaw { get; set; }
         public string InternalPath { get; set; }
         public DateTimeOffset Created { get; set; }
         public DateTimeOffset Added { get; set; }
@@ -71,24 +73,34 @@ namespace Ipfs.Manager.Models
         public long Size { get; set; }
         [Indexed]
         public string Hash { get; set; }
-        private Hypermedia _parent;
+        public Hypermedia ParentRaw { get; set; }
         [Ignored]
         public IEntity Parent
         {
-            get => _parent;
+            get => ParentRaw;
             set
             {
                 if(value is Hypermedia)
                 {
-                    _parent = value as Hypermedia;
+                    ParentRaw = value as Hypermedia;
                 }
                 else
                 {
-                    _parent = null;
+                    ParentRaw = null;
                 }
             }
         }
         public string Version { get; set; }
         public long Index { get; set; }
+
+        public Hypermedia()
+        {
+            Progress = new Progress<double>(ChangeProgressRaw);
+        }
+
+        private void ChangeProgressRaw(double percent)
+        {
+            ProgressRaw = percent;
+        }
     }
 }
