@@ -186,10 +186,22 @@ namespace Ipfs.Manager
         {
             HypermediaService = new Services.Versions.HypermediaService.BaseHypermediaService(this);
             HypermediaServiceVersion = HypermediaService.GetType();
+
+            FileSystemService = new Services.Versions.FileSystemService.BaseFileSystemService(this);
+            FileSystemServiceVersion = FileSystemService.GetType();
+
+            UploadService = new Services.Versions.UploadService.BaseUploadService(this);
+            UploadServiceVersion = UploadService.GetType();
         }
 
         public Type HypermediaServiceVersion { get; set; }
         public Services.IHypermediaService HypermediaService { get; set; }
+
+        public Type FileSystemServiceVersion { get; set; }
+        public Services.IFileSystemService FileSystemService { get; set; }
+
+        public Type UploadServiceVersion { get; set; }
+        public Services.IUploadService UploadService { get; set; }
 
         public void Dispose()
         {
