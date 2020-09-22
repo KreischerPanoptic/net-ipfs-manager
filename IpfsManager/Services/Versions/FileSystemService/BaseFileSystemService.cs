@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Ipfs.Manager.Cryptography;
 using Ipfs.Manager.Models;
+using Ipfs.Manager.Tools;
 
 namespace Ipfs.Manager.Services.Versions.FileSystemService
 {
@@ -215,6 +216,33 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
             }
 
+            if(GetRelativeParent(directory).IsAttributesPreservationEnabled)
+            {
+                try
+                {
+                    var di = new System.IO.DirectoryInfo(basePath);
+                    di.Attributes = directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory);
+                }
+                catch (Exception e)
+                {
+                    directory.Status = Status.Error;
+                    return false;
+                }
+            }
+            else
+            {
+                try
+                {
+                    var di = new System.IO.DirectoryInfo(basePath);
+                    di.Attributes = System.IO.FileAttributes.Directory;
+                }
+                catch (Exception e)
+                {
+                    directory.Status = Status.Error;
+                    return false;
+                }
+            }
+
             foreach (var d in directory.Directories)
             {
                 if (!CheckAndFixDirectoryFileSystemModel(d))
@@ -251,9 +279,38 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     if (!System.IO.Directory.Exists(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks")))
                     {
                         System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                        var di = new System.IO.DirectoryInfo(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                        di.Attributes = System.IO.FileAttributes.Directory | System.IO.FileAttributes.Hidden;
                     }
                 }
                 catch
+                {
+                    file.Status = Status.Error;
+                    return false;
+                }
+            }
+
+            if (GetRelativeParent(file).IsAttributesPreservationEnabled)
+            {
+                try
+                {
+                    var fi = new System.IO.FileInfo(basePath);
+                    fi.Attributes = file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal);
+                }
+                catch (Exception e)
+                {
+                    file.Status = Status.Error;
+                    return false;
+                }
+            }
+            else
+            {
+                try
+                {
+                    var fi = new System.IO.FileInfo(basePath);
+                    fi.Attributes = System.IO.FileAttributes.Normal;
+                }
+                catch (Exception e)
                 {
                     file.Status = Status.Error;
                     return false;
@@ -283,6 +340,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     System.IO.File.Create(basePath);
+                    System.IO.File.SetAttributes(basePath, System.IO.FileAttributes.Hidden);
                 }
                 catch
                 {
@@ -292,6 +350,18 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             }
             block.Status = Status.ReadyForDownload;
             return true;
+        }
+
+        private Models.Hypermedia GetRelativeParent(IEntity entity)
+        {
+            if(entity.Parent is Models.Hypermedia)
+            {
+                return entity.Parent as Models.Hypermedia;
+            }
+            else
+            {
+                return GetRelativeParent(entity.Parent);
+            }
         }
      
         public bool CreateFileSystemModel(Models.Hypermedia hypermedia)
@@ -304,7 +374,18 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             string basePath = hypermedia.InternalPath;
             try
             {
-                System.IO.Directory.CreateDirectory(basePath);
+                if (hypermedia.WrappingOptions == WrappingOptions.SubDirectory)
+                {
+                    System.IO.Directory.CreateDirectory(basePath);
+                }
+                else
+                {
+                    if(!System.IO.Directory.Exists(basePath))
+                    {
+                        hypermedia.Status = Status.Error;
+                        return false;
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -362,6 +443,33 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 return false;
             }
 
+            if (GetRelativeParent(directory).IsAttributesPreservationEnabled)
+            {
+                try
+                {
+                    var di = new System.IO.DirectoryInfo(basePath);
+                    di.Attributes = directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory);
+                }
+                catch (Exception e)
+                {
+                    directory.Status = Status.Error;
+                    return false;
+                }
+            }
+            else
+            {
+                try
+                {
+                    var di = new System.IO.DirectoryInfo(basePath);
+                    di.Attributes = System.IO.FileAttributes.Directory;
+                }
+                catch (Exception e)
+                {
+                    directory.Status = Status.Error;
+                    return false;
+                }
+            }
+
             foreach (var d in directory.Directories)
             {
                 if (!CreateDirectoryFileSystemModel(d))
@@ -393,12 +501,40 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             try
             {
                 System.IO.File.Create(basePath);
-                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                var di = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                di.Attributes = System.IO.FileAttributes.Directory | System.IO.FileAttributes.Hidden;
             }
             catch (Exception e)
             {
                 file.Status = Status.Error;
                 return false;
+            }
+
+            if (GetRelativeParent(file).IsAttributesPreservationEnabled)
+            {
+                try
+                {
+                    var fi = new System.IO.FileInfo(basePath);
+                    fi.Attributes = file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal);
+                }
+                catch (Exception e)
+                {
+                    file.Status = Status.Error;
+                    return false;
+                }
+            }
+            else
+            {
+                try
+                {
+                    var fi = new System.IO.FileInfo(basePath);
+                    fi.Attributes = System.IO.FileAttributes.Normal;
+                }
+                catch (Exception e)
+                {
+                    file.Status = Status.Error;
+                    return false;
+                }
             }
 
             foreach (var b in file.Blocks)
@@ -421,6 +557,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             try
             {
                 System.IO.File.Create(basePath);
+                System.IO.File.SetAttributes(basePath, System.IO.FileAttributes.Hidden);
             }
             catch (Exception e)
             {
@@ -449,12 +586,34 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     return false;
                 }
+                if(isFileDeletionRequested)
+                {
+                    try
+                    {
+                        System.IO.File.Delete(f.InternalPath);
+                    }
+                    catch (Exception e)
+                    {
+                        return false;
+                    }
+                }
             }
             foreach (var d in hypermedia.Directories)
             {
                 if (!UnpinDirectory(d))
                 {
                     return false;
+                }
+                if (isFileDeletionRequested)
+                {
+                    try
+                    {
+                        System.IO.Directory.Delete(d.InternalPath, true);
+                    }
+                    catch (Exception e)
+                    {
+                        return false;
+                    }
                 }
             }
             foreach (var h in hypermedia.Hypermedias)
@@ -463,19 +622,37 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     return false;
                 }
+                if (isFileDeletionRequested)
+                {
+                    try
+                    {
+                        if (h.WrappingOptions == WrappingOptions.SubDirectory)
+                        {
+                            System.IO.Directory.Delete(h.InternalPath, true);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        return false;
+                    }
+                }
             }
 
-            if(isFileDeletionRequested)
+            if (isFileDeletionRequested)
             {
                 try
                 {
-                    System.IO.Directory.Delete(hypermedia.InternalPath, true);
+                    if (hypermedia.WrappingOptions == WrappingOptions.SubDirectory)
+                    {
+                        System.IO.Directory.Delete(hypermedia.InternalPath, true);
+                    }
                 }
                 catch (Exception e)
                 {
                     return false;
                 }
             }
+
             return true;
         }
 
@@ -547,7 +724,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
         private bool UnpinBlock(Models.Block block)
         {
             var r = _manager.Engine().Pin.RemoveAsync(block.Path).Result;
-            //TODO check
+            //TODO: Check if correctly unpinning
             return r.First() == block.Path;
         }
 
@@ -556,33 +733,10 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             string blockPath = block.InternalPath;
             if(!System.IO.File.Exists(blockPath))
             {
-                throw new ArgumentException("Block is not downloaded yet, or misconfigurated", nameof(block));
+                throw new ArgumentException("Block is not created yet, or misconfigurated", nameof(block));
             }
 
-            List<byte> bytes = new List<byte>();
-            try
-            {
-                using (var fs = new System.IO.FileStream(blockPath, System.IO.FileMode.Open))
-                {
-                    bool isEndOfStream = false;
-                    while (!isEndOfStream)
-                    {
-                        int b = fs.ReadByte();
-                        if (b != -1)
-                        {
-                            bytes.Add((byte)b);
-                        }
-                        else
-                        {
-                            isEndOfStream = true;
-                        }
-                    }
-                }
-            }
-            catch(Exception e)
-            {
-                throw new AggregateException("Unknown error encountered", e);
-            }
+            List<byte> bytes = ByteTools.GetByteFromFile(blockPath);
 
             KeccakManaged keccak = new KeccakManaged(512);
             var buf = keccak.ComputeHash(bytes.ToArray());
@@ -594,11 +748,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             }
             string internalHash = sb.ToString();
 
-            //TODO check if works
-            if(internalHash == block.Hash)
-            {
-                block.Status = Status.Seeding;
-            }
+            //TODO: Check if works
             return internalHash == block.Hash;
         }
 
@@ -606,15 +756,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
         {
             if (!System.IO.Directory.Exists(directory.InternalPath))
             {
-                throw new ArgumentException("Directory is not downloaded yet, or misconfigurated", nameof(directory));
+                throw new ArgumentException("Directory is not created yet, or misconfigurated", nameof(directory));
             }
 
-            foreach(var f in directory.Files)
+            List<IEntity> entities = new List<IEntity>();
+            foreach (var f in directory.Files)
             {
                 if (!IsFileValid(f))
                 {
                     return false;
                 }
+                entities.Add(f);
             }
             foreach (var d in directory.Directories)
             {
@@ -622,18 +774,41 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     return false;
                 }
+                entities.Add(d);
             }
 
-            directory.Status = Status.Seeding;
-            //TODO check if I can fix it, because right now it's unknown in which order entities were translated to Files and Directories
-            return true;
+            entities = entities.OrderBy(e => e.Index).ToList();
+
+            KeccakManaged keccak = new KeccakManaged(512);
+            List<string> entitesHashes = new List<string>();
+            foreach (var e in entities)
+            {
+                entitesHashes.Add(e.Hash);
+            }
+            List<byte> buffer = new List<byte>();
+            foreach (var eh in entitesHashes)
+            {
+                buffer.AddRange(Encoding.UTF8.GetBytes(eh));
+            }
+
+            var buf = keccak.ComputeHash(buffer.ToArray());
+
+            StringBuilder sb = new StringBuilder();
+            foreach (var b in buf)
+            {
+                sb.Append(b.ToString("X2"));
+            }
+            string internalHash = sb.ToString();
+
+            //TODO: Check if works
+            return internalHash == directory.Hash;
         }
 
         public bool IsFileValid(Models.File file)
         {
             if (!System.IO.File.Exists(file.InternalPath))
             {
-                throw new ArgumentException("File is not downloaded yet, or misconfigurated", nameof(file));
+                throw new ArgumentException("File is not created yet, or misconfigurated", nameof(file));
             }
 
             KeccakManaged keccak = new KeccakManaged(512);
@@ -672,44 +847,12 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
                 string internalHash = sb.ToString();
 
-                //TODO check if works
-                if (internalHash == file.Hash)
-                {
-                    file.Status = Status.Seeding;
-                }
-                else
-                {
-                    file.Status = Status.ReadyForReconstruction;
-                }
+                //TODO: Check if works
                 return internalHash == file.Hash;
             }
             else
             {
-                List<byte> bytes = new List<byte>();
-
-                try
-                {
-                    using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
-                    {
-                        bool isEndOfStream = false;
-                        while (!isEndOfStream)
-                        {
-                            int b = fs.ReadByte();
-                            if (b != -1)
-                            {
-                                bytes.Add((byte)b);
-                            }
-                            else
-                            {
-                                isEndOfStream = true;
-                            }
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    throw new AggregateException("Unknown error encountered", e);
-                }
+                List<byte> bytes = ByteTools.GetByteFromFile(file.InternalPath);
 
                 var buf = keccak.ComputeHash(bytes.ToArray());
 
@@ -720,7 +863,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
                 string internalHash = sb.ToString();
 
-                //TODO check if works
+                //TODO: Check if works
                 if (internalHash == file.Hash)
                 {
                     file.Status = Status.Seeding;
@@ -733,15 +876,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
         {
             if (!System.IO.Directory.Exists(hypermedia.InternalPath))
             {
-                throw new ArgumentException("Hypermedia is not downloaded yet, or misconfigurated", nameof(hypermedia));
+                throw new ArgumentException("Hypermedia is misconfigurated", nameof(hypermedia));
             }
 
+            List<IEntity> entities = new List<IEntity>();
             foreach (var f in hypermedia.Files)
             {
                 if (!IsFileValid(f))
                 {
                     return false;
                 }
+                entities.Add(f);
             }
             foreach (var d in hypermedia.Directories)
             {
@@ -749,6 +894,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     return false;
                 }
+                entities.Add(d);
             }
             foreach (var h in hypermedia.Hypermedias)
             {
@@ -756,11 +902,35 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     return false;
                 }
+                entities.Add(h);
             }
 
-            hypermedia.Status = Status.Seeding;
-            //TODO check if I can fix it, because right now it's unknown in which order entities were translated to Files and Directories
-            return true;
+            entities = entities.OrderBy(e => e.Index).ToList();
+
+            KeccakManaged keccak = new KeccakManaged(512);
+
+            List<string> entitesHashes = new List<string>();
+            foreach (var e in entities)
+            {
+                entitesHashes.Add(e.Hash);
+            }
+            List<byte> buffer = new List<byte>();
+            foreach (var eh in entitesHashes)
+            {
+                buffer.AddRange(Encoding.UTF8.GetBytes(eh));
+            }
+
+            var buf = keccak.ComputeHash(buffer.ToArray());
+
+            StringBuilder sb = new StringBuilder();
+            foreach (var b in buf)
+            {
+                sb.Append(b.ToString("X2"));
+            }
+            string internalHash = sb.ToString();
+
+            //TODO: Check if works
+            return internalHash == hypermedia.Hash;
         }
 
         public async Task<bool> IsBlockValidAsync(Block block)
