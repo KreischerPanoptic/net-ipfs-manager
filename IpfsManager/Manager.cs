@@ -177,7 +177,7 @@ namespace Ipfs.Manager
             return _instance;
         }
 
-        public IpfsEngine Engine()
+        internal IpfsEngine Engine()
         {
             return _engine;
         }
@@ -192,6 +192,9 @@ namespace Ipfs.Manager
 
             UploadService = new Services.Versions.UploadService.BaseUploadService(this);
             UploadServiceVersion = UploadService.GetType();
+
+            RealmService = new Services.Versions.RealmService.BaseRealmService(this);
+            RealmServiceVersion = RealmService.GetType();
         }
 
         public Type HypermediaServiceVersion { get; set; }
@@ -202,6 +205,9 @@ namespace Ipfs.Manager
 
         public Type UploadServiceVersion { get; set; }
         public Services.IUploadService UploadService { get; set; }
+
+        public Type RealmServiceVersion { get; set; }
+        public Services.IRealmService RealmService { get; set; }
 
         public void Dispose()
         {

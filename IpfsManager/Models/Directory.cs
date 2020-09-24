@@ -40,6 +40,7 @@ namespace Ipfs.Manager.Models
                 }
             }
         }
+        [Ignored]
         public Progress<double> Progress { get; }
         public double ProgressRaw { get; set; }
         [Indexed]
