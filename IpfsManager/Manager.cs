@@ -195,6 +195,9 @@ namespace Ipfs.Manager
 
             RealmService = new Services.Versions.RealmService.BaseRealmService(this);
             RealmServiceVersion = RealmService.GetType();
+
+            DownloadService = new Services.Versions.DownloadService.BaseDownloadService(this);
+            DownloadServiceVersion = DownloadService.GetType();
         }
 
         public Type HypermediaServiceVersion { get; set; }
@@ -208,6 +211,9 @@ namespace Ipfs.Manager
 
         public Type RealmServiceVersion { get; set; }
         public Services.IRealmService RealmService { get; set; }
+
+        public Type DownloadServiceVersion { get; set; }
+        public Services.IDownloadService DownloadService { get; set; }
 
         public void Dispose()
         {
