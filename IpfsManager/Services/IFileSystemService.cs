@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipfs.Manager.Models;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -27,9 +28,9 @@ namespace Ipfs.Manager.Services
 
         bool CheckAndFixFileSystemModel(Models.Hypermedia hypermedia);
 
-        Models.Hypermedia UpdateStatus(Models.Hypermedia hypermedia);
+        Models.Hypermedia UpdateStatus(Models.Hypermedia hypermedia, Status origin);
 
-        Task<Models.Hypermedia> UpdateStatusAsync(Models.Hypermedia hypermedia);
+        Task<Models.Hypermedia> UpdateStatusAsync(Models.Hypermedia hypermedia, Status origin);
 
         bool ClearTempFileSystem(Models.Hypermedia hypermedia);
 
@@ -52,5 +53,17 @@ namespace Ipfs.Manager.Services
         bool DeleteHypermedia(Models.Hypermedia hypermedia);
 
         bool DeleteHypermedia(Models.Hypermedia hypermedia, bool isFileDeletionRequested);
+
+        Task<Models.Directory> UpdateDirectoryStatusAsync(Models.Directory directory);
+
+        Task<Models.File> UpdateFileStatusAsync(Models.File file);
+
+        Task<Models.Block> UpdateBlockStatusAsync(Models.Block block);
+
+        Models.Directory UpdateDirectoryStatus(Models.Directory directory);
+
+        Models.File UpdateFileStatus(Models.File file);
+
+        Models.Block UpdateBlockStatus(Models.Block block);
     }
 }

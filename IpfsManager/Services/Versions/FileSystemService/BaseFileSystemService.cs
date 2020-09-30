@@ -73,9 +73,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     System.IO.Directory.Delete(p, true);
                 }
-                catch(Exception e)
+                catch
                 {
-                    //TODO add logging of exceptions
                     return false;
                 }
             }
@@ -156,9 +155,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     System.IO.Directory.CreateDirectory(basePath);
                 }
-                catch (Exception e)
+                catch
                 {
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
             }
@@ -167,36 +165,25 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CheckAndFixHypermediaFileSystemModel(h))
                 {
-                    h.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                h.Status = Status.ReadyForDownload;
             }
 
             foreach (var d in hypermedia.Directories)
             {
                 if (!CheckAndFixDirectoryFileSystemModel(d))
                 {
-                    d.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                d.Status = Status.ReadyForDownload;
             }
 
             foreach (var f in hypermedia.Files)
             {
                 if (!CheckAndFixFileFileSystemModel(f))
                 {
-                    f.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                f.Status = Status.ReadyForDownload;
             }
-
-            hypermedia.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -209,9 +196,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     System.IO.Directory.CreateDirectory(basePath);
                 }
-                catch (Exception e)
+                catch
                 {
-                    directory.Status = Status.Error;
                     return false;
                 }
             }
@@ -221,11 +207,13 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     var di = new System.IO.DirectoryInfo(basePath);
-                    di.Attributes = directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory);
+                    if (di.Attributes == directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory))
+                    {
+                        di.Attributes = directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory);
+                    }
                 }
-                catch (Exception e)
+                catch
                 {
-                    directory.Status = Status.Error;
                     return false;
                 }
             }
@@ -234,11 +222,13 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     var di = new System.IO.DirectoryInfo(basePath);
-                    di.Attributes = System.IO.FileAttributes.Directory;
+                    if (di.Attributes == System.IO.FileAttributes.Directory)
+                    {
+                        di.Attributes = System.IO.FileAttributes.Directory;
+                    }
                 }
-                catch (Exception e)
+                catch
                 {
-                    directory.Status = Status.Error;
                     return false;
                 }
             }
@@ -247,24 +237,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CheckAndFixDirectoryFileSystemModel(d))
                 {
-                    d.Status = Status.Error;
-                    directory.Status = Status.Error;
                     return false;
                 }
-                d.Status = Status.ReadyForDownload;
             }
 
             foreach (var f in directory.Files)
             {
                 if (!CheckAndFixFileFileSystemModel(f))
                 {
-                    f.Status = Status.Error;
-                    directory.Status = Status.Error;
                     return false;
                 }
-                f.Status = Status.ReadyForDownload;
             }
-            directory.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -285,7 +268,6 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
                 catch
                 {
-                    file.Status = Status.Error;
                     return false;
                 }
             }
@@ -295,11 +277,13 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     var fi = new System.IO.FileInfo(basePath);
-                    fi.Attributes = file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal);
+                    if (fi.Attributes != file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal))
+                    {
+                        fi.Attributes = file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal);
+                    }
                 }
-                catch (Exception e)
+                catch
                 {
-                    file.Status = Status.Error;
                     return false;
                 }
             }
@@ -308,11 +292,13 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     var fi = new System.IO.FileInfo(basePath);
-                    fi.Attributes = System.IO.FileAttributes.Normal;
+                    if (fi.Attributes != System.IO.FileAttributes.Normal)
+                    {
+                        fi.Attributes = System.IO.FileAttributes.Normal;
+                    }
                 }
-                catch (Exception e)
+                catch
                 {
-                    file.Status = Status.Error;
                     return false;
                 }
             }
@@ -321,13 +307,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CheckAndFixBlockFileSystemModel(b))
                 {
-                    b.Status = Status.Error;
-                    file.Status = Status.Error;
                     return false;
                 }
-                b.Status = Status.ReadyForDownload;
             }
-            file.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -344,11 +326,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
                 catch
                 {
-                    block.Status = Status.Error;
                     return false;
                 }
             }
-            block.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -382,14 +362,12 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     if(!System.IO.Directory.Exists(basePath))
                     {
-                        hypermedia.Status = Status.Error;
                         return false;
                     }
                 }
             }
-            catch (Exception e)
+            catch
             {
-                hypermedia.Status = Status.Error;
                 return false;
             }
 
@@ -397,36 +375,25 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CreateHypermediaFileSystemModel(h))
                 {
-                    h.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                h.Status = Status.ReadyForDownload;
             }
 
             foreach (var d in hypermedia.Directories)
             {
                 if (!CreateDirectoryFileSystemModel(d))
                 {
-                    d.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                d.Status = Status.ReadyForDownload;
             }
 
             foreach (var f in hypermedia.Files)
             {
                 if (!CreateFileFileSystemModel(f))
                 {
-                    f.Status = Status.Error;
-                    hypermedia.Status = Status.Error;
                     return false;
                 }
-                f.Status = Status.ReadyForDownload;
             }
-
-            hypermedia.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -437,9 +404,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 System.IO.Directory.CreateDirectory(basePath);
             }
-            catch (Exception e)
+            catch
             {
-                directory.Status = Status.Error;
                 return false;
             }
 
@@ -450,9 +416,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     var di = new System.IO.DirectoryInfo(basePath);
                     di.Attributes = directory.Attributes.GetValueOrDefault(System.IO.FileAttributes.Directory);
                 }
-                catch (Exception e)
+                catch
                 {
-                    directory.Status = Status.Error;
                     return false;
                 }
             }
@@ -463,9 +428,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     var di = new System.IO.DirectoryInfo(basePath);
                     di.Attributes = System.IO.FileAttributes.Directory;
                 }
-                catch (Exception e)
+                catch
                 {
-                    directory.Status = Status.Error;
                     return false;
                 }
             }
@@ -474,24 +438,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CreateDirectoryFileSystemModel(d))
                 {
-                    d.Status = Status.Error;
-                    directory.Status = Status.Error;
                     return false;
                 }
-                d.Status = Status.ReadyForDownload;
             }
 
             foreach (var f in directory.Files)
             {
                 if (!CreateFileFileSystemModel(f))
                 {
-                    f.Status = Status.Error;
-                    directory.Status = Status.Error;
                     return false;
                 }
-                f.Status = Status.ReadyForDownload;
             }
-            directory.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -504,9 +461,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 var di = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
                 di.Attributes = System.IO.FileAttributes.Directory | System.IO.FileAttributes.Hidden;
             }
-            catch (Exception e)
+            catch
             {
-                file.Status = Status.Error;
                 return false;
             }
 
@@ -517,9 +473,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     var fi = new System.IO.FileInfo(basePath);
                     fi.Attributes = file.Attributes.GetValueOrDefault(System.IO.FileAttributes.Normal);
                 }
-                catch (Exception e)
+                catch
                 {
-                    file.Status = Status.Error;
                     return false;
                 }
             }
@@ -530,9 +485,8 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     var fi = new System.IO.FileInfo(basePath);
                     fi.Attributes = System.IO.FileAttributes.Normal;
                 }
-                catch (Exception e)
+                catch
                 {
-                    file.Status = Status.Error;
                     return false;
                 }
             }
@@ -541,13 +495,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             {
                 if (!CreateBlockFileSystemModel(b))
                 {
-                    b.Status = Status.Error;
-                    file.Status = Status.Error;
                     return false;
                 }
-                b.Status = Status.ReadyForDownload;
             }
-            file.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -559,12 +509,10 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 System.IO.File.Create(basePath);
                 System.IO.File.SetAttributes(basePath, System.IO.FileAttributes.Hidden);
             }
-            catch (Exception e)
+            catch
             {
-                block.Status = Status.Error;
                 return false;
             }
-            block.Status = Status.ReadyForDownload;
             return true;
         }
 
@@ -592,7 +540,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     {
                         System.IO.File.Delete(f.InternalPath);
                     }
-                    catch (Exception e)
+                    catch
                     {
                         return false;
                     }
@@ -610,7 +558,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     {
                         System.IO.Directory.Delete(d.InternalPath, true);
                     }
-                    catch (Exception e)
+                    catch
                     {
                         return false;
                     }
@@ -631,7 +579,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                             System.IO.Directory.Delete(h.InternalPath, true);
                         }
                     }
-                    catch (Exception e)
+                    catch
                     {
                         return false;
                     }
@@ -647,7 +595,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                         System.IO.Directory.Delete(hypermedia.InternalPath, true);
                     }
                 }
-                catch (Exception e)
+                catch
                 {
                     return false;
                 }
@@ -864,10 +812,6 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 string internalHash = sb.ToString();
 
                 //TODO: Check if works
-                if (internalHash == file.Hash)
-                {
-                    file.Status = Status.Seeding;
-                }
                 return internalHash == file.Hash;
             }
         }
@@ -984,7 +928,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     hypermedia = Hypermedia.Hypermedia.Deserialize(fs);
                 }
-                catch(Exception e)
+                catch
                 {
                     throw new ArgumentException("Deserialization error encountered while processing mentioned file", nameof(path));
                 }
@@ -1011,7 +955,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 {
                     hypermedia = await Hypermedia.Hypermedia.DeserializeAsync(fs);
                 }
-                catch (Exception e)
+                catch
                 {
                     throw new ArgumentException("Deserialization error encountered while processing mentioned file", nameof(path));
                 }
@@ -1149,29 +1093,23 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             }
         }
 
-        public async Task<Models.Hypermedia> UpdateStatusAsync(Models.Hypermedia hypermedia)
+        public async Task<Models.Hypermedia> UpdateStatusAsync(Models.Hypermedia hypermedia, Status origin)
         {
-            return await UpdateHypermediaStatusAsync(hypermedia);
+            return await UpdateHypermediaStatusAsync(hypermedia, origin);
         }
 
-        private async Task<Models.Hypermedia> UpdateHypermediaStatusAsync(Models.Hypermedia hypermedia)
+        private async Task<Models.Hypermedia> UpdateHypermediaStatusAsync(Models.Hypermedia hypermedia, Status origin)
         {
-            string hypermediaPath = hypermedia.InternalPath;
 
             bool isHypermediaValid = await IsHypermediaValidAsync(hypermedia);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(hypermediaPath).Length == hypermedia.Size;
 
             bool isAllFilesReady = true;
             for (int i = 0; i < hypermedia.Files.Count; ++i)
             {
                 Models.File tmpFile = await UpdateFileStatusAsync(hypermedia.Files[i]);
-                if (tmpFile.Status == Status.Checking || tmpFile.Status == Status.Connecting || tmpFile.Status == Status.Downloading || tmpFile.Status == Status.Error || tmpFile.Status == Status.ReadyForDownload || tmpFile.Status == Status.ReadyForReconstruction || tmpFile.Status == Status.Stopped)
+                if (!await IsFileValidAsync(tmpFile))
                 {
-                    if (! await IsFileValidAsync(tmpFile))
-                    {
-                        isAllFilesReady = false;
-                    }
+                    isAllFilesReady = false;
                 }
                 hypermedia.Files[i] = tmpFile;
             }
@@ -1180,12 +1118,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             for (int i = 0; i < hypermedia.Directories.Count; ++i)
             {
                 Models.Directory tmpDirectory = await UpdateDirectoryStatusAsync(hypermedia.Directories[i]);
-                if (tmpDirectory.Status == Status.Checking || tmpDirectory.Status == Status.Connecting || tmpDirectory.Status == Status.Downloading || tmpDirectory.Status == Status.Error || tmpDirectory.Status == Status.ReadyForDownload || tmpDirectory.Status == Status.Stopped)
+                if (!await IsDirectoryValidAsync(tmpDirectory))
                 {
-                    if (! await IsDirectoryValidAsync(tmpDirectory))
-                    {
-                        isAllDirectoriesReady = false;
-                    }
+                    isAllDirectoriesReady = false;
                 }
                 hypermedia.Directories[i] = tmpDirectory;
             }
@@ -1193,63 +1128,148 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             bool isAllHypermediasReady = true;
             for (int i = 0; i < hypermedia.Hypermedias.Count; ++i)
             {
-                Models.Hypermedia tmpHypermedia = await UpdateHypermediaStatusAsync(hypermedia.Hypermedias[i]);
-                if (tmpHypermedia.Status == Status.Checking || tmpHypermedia.Status == Status.Connecting || tmpHypermedia.Status == Status.Downloading || tmpHypermedia.Status == Status.Error || tmpHypermedia.Status == Status.ReadyForDownload || tmpHypermedia.Status == Status.Stopped)
+                Models.Hypermedia tmpHypermedia = await UpdateHypermediaStatusAsync(hypermedia.Hypermedias[i], hypermedia.Hypermedias[i].Status);
+                if (!await IsHypermediaValidAsync(tmpHypermedia))
                 {
-                    if (! await IsHypermediaValidAsync(tmpHypermedia))
-                    {
-                        isAllHypermediasReady = false;
-                    }
+                    isAllHypermediasReady = false;
                 }
                 hypermedia.Hypermedias[i] = tmpHypermedia;
             }
 
-            Status tmpStatus = Status.Seeding;
-            switch (hypermedia.Status)
+            switch (origin)
             {
                 case Status.Checking:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    throw new ArgumentException($"{nameof(origin)} can't be equal to {nameof(Status.Checking)} during status update", nameof(origin));
+                case Status.Completed:
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        hypermedia.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        hypermedia.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    hypermedia.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixHypermediaFileSystemModel(hypermedia))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                hypermedia.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                hypermedia.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
-                    {
-                        hypermedia.Status = tmpStatus;
-                    }
-                    break;
+                    throw new Exception($"{nameof(Hypermedia)} can't be reconstructed");
                 case Status.Seeding:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        hypermedia.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1263,24 +1283,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return hypermedia;
         }
 
-        private async Task<Models.Directory> UpdateDirectoryStatusAsync(Models.Directory directory)
+        public async Task<Models.Directory> UpdateDirectoryStatusAsync(Models.Directory directory)
         {
-            string directoryPath = directory.InternalPath;
-
             bool isDirectoryValid = await IsDirectoryValidAsync(directory);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(directoryPath).Length == directory.Size;
 
             bool isAllFilesReady = true;
             for (int i = 0; i < directory.Files.Count; ++i)
             {
                 Models.File tmpFile = await UpdateFileStatusAsync(directory.Files[i]);
-                if (tmpFile.Status == Status.Checking || tmpFile.Status == Status.Connecting || tmpFile.Status == Status.Downloading || tmpFile.Status == Status.Error || tmpFile.Status == Status.ReadyForDownload || tmpFile.Status == Status.ReadyForReconstruction || tmpFile.Status == Status.Stopped)
+                if (!await IsFileValidAsync(tmpFile))
                 {
-                    if ( !await IsFileValidAsync(tmpFile))
-                    {
-                        isAllFilesReady = false;
-                    }
+                    isAllFilesReady = false;
                 }
                 directory.Files[i] = tmpFile;
             }
@@ -1289,62 +1302,147 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             for (int i = 0; i < directory.Directories.Count; ++i)
             {
                 Models.Directory tmpDirectory = await UpdateDirectoryStatusAsync(directory.Directories[i]);
-                if (tmpDirectory.Status == Status.Checking || tmpDirectory.Status == Status.Connecting || tmpDirectory.Status == Status.Downloading || tmpDirectory.Status == Status.Error || tmpDirectory.Status == Status.ReadyForDownload || tmpDirectory.Status == Status.Stopped)
+                if (!await IsDirectoryValidAsync(tmpDirectory))
                 {
-                    if (! await IsDirectoryValidAsync(tmpDirectory))
-                    {
-                        isAllDirectoriesReady = false;
-                    }
+                    isAllDirectoriesReady = false;
                 }
                 directory.Directories[i] = tmpDirectory;
             }
 
-            Status tmpStatus = Status.Seeding;
             switch (directory.Status)
             {
                 case Status.Checking:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    throw new Exception($"{nameof(directory.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        directory.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        directory.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    directory.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixDirectoryFileSystemModel(directory))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                directory.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                directory.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            directory.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
-                    {
-                        directory.Status = tmpStatus;
-                    }
-                    break;
+                    throw new Exception($"{nameof(Directory)} can't be reconstructed");
                 case Status.Seeding:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        directory.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1358,14 +1456,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return directory;
         }
 
-        //TODO check what will happen if file is completed or seeding
-        private async Task<Models.File> UpdateFileStatusAsync(Models.File file)
+        public async Task<Models.File> UpdateFileStatusAsync(Models.File file)
         {
-            string filePath = file.InternalPath;
-
             bool isFileValid = await IsFileValidAsync(file);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(filePath).Length == file.Size;
 
             if (!file.IsSingleBlock)
             {
@@ -1373,12 +1466,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 for (int i = 0; i < file.Blocks.Count; ++i)
                 {
                     Models.Block tmpBlock = await UpdateBlockStatusAsync(file.Blocks[i]);
-                    if (tmpBlock.Status == Status.Checking || tmpBlock.Status == Status.Connecting || tmpBlock.Status == Status.Downloading || tmpBlock.Status == Status.Error || tmpBlock.Status == Status.ReadyForDownload || tmpBlock.Status == Status.Stopped)
+                    if (!await IsBlockValidAsync(tmpBlock))
                     {
-                        if (! await IsBlockValidAsync(tmpBlock))
-                        {
-                            isAllBlockReady = false;
-                        }
+                        isAllBlockReady = false;
                     }
                     file.Blocks[i] = tmpBlock;
                 }
@@ -1392,56 +1482,152 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                         }
                         file.Status = Status.ReadyForReconstruction;
                     }
+                    return file;
                 }
-                return file;
             }
 
-            Status tmpStatus = Status.Seeding;
             switch (file.Status)
             {
                 case Status.Checking:
-                    if (isFileValid && isSizeMatches)
+                    throw new Exception($"{nameof(file.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        file.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    file.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixFileFileSystemModel(file))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                file.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                file.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            file.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        file.Status = Status.ReadyForReconstruction;
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
                 case Status.Seeding:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1455,57 +1641,152 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return file;
         }
 
-        private async Task<Models.Block> UpdateBlockStatusAsync(Models.Block block)
+        public async Task<Models.Block> UpdateBlockStatusAsync(Models.Block block)
         {
-            string blockPath = block.InternalPath;
-
             bool isBlockValid = await IsBlockValidAsync(block);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(blockPath).Length == block.Size;
 
-            Status tmpStatus = Status.Seeding;
             switch (block.Status)
             {
                 case Status.Checking:
-                    if (isBlockValid && isSizeMatches)
+                    throw new Exception($"{nameof(block.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        block.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    block.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixBlockFileSystemModel(block))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                block.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                block.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            block.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    block.Status = Status.ReadyForReconstruction;
+                    if (isBlockValid)
+                    {
+                        block.Status = Status.ReadyForReconstruction;
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
+                    }
                     break;
                 case Status.Seeding:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1519,29 +1800,22 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return block;
         }
 
-        public Models.Hypermedia UpdateStatus(Models.Hypermedia hypermedia)
+        public Models.Hypermedia UpdateStatus(Models.Hypermedia hypermedia, Status origin)
         {
-            return UpdateHypermediaStatus(hypermedia);
+            return UpdateHypermediaStatus(hypermedia, origin);
         }
-        
-        private Models.Hypermedia UpdateHypermediaStatus(Models.Hypermedia hypermedia)
-        {
-            string hypermediaPath = hypermedia.InternalPath;
 
+        private Models.Hypermedia UpdateHypermediaStatus(Models.Hypermedia hypermedia, Status origin)
+        {
             bool isHypermediaValid = IsHypermediaValid(hypermedia);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(hypermediaPath).Length == hypermedia.Size;
 
             bool isAllFilesReady = true;
             for (int i = 0; i < hypermedia.Files.Count; ++i)
             {
                 Models.File tmpFile = UpdateFileStatus(hypermedia.Files[i]);
-                if (tmpFile.Status == Status.Checking || tmpFile.Status == Status.Connecting || tmpFile.Status == Status.Downloading || tmpFile.Status == Status.Error || tmpFile.Status == Status.ReadyForDownload || tmpFile.Status == Status.ReadyForReconstruction || tmpFile.Status == Status.Stopped)
+                if (!IsFileValid(tmpFile))
                 {
-                    if (!IsFileValid(tmpFile))
-                    {
-                        isAllFilesReady = false;
-                    }
+                    isAllFilesReady = false;
                 }
                 hypermedia.Files[i] = tmpFile;
             }
@@ -1550,12 +1824,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             for (int i = 0; i < hypermedia.Directories.Count; ++i)
             {
                 Models.Directory tmpDirectory = UpdateDirectoryStatus(hypermedia.Directories[i]);
-                if (tmpDirectory.Status == Status.Checking || tmpDirectory.Status == Status.Connecting || tmpDirectory.Status == Status.Downloading || tmpDirectory.Status == Status.Error || tmpDirectory.Status == Status.ReadyForDownload || tmpDirectory.Status == Status.Stopped)
+                if (!IsDirectoryValid(tmpDirectory))
                 {
-                    if (!IsDirectoryValid(tmpDirectory))
-                    {
-                        isAllDirectoriesReady = false;
-                    }
+                    isAllDirectoriesReady = false;
                 }
                 hypermedia.Directories[i] = tmpDirectory;
             }
@@ -1563,63 +1834,148 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             bool isAllHypermediasReady = true;
             for (int i = 0; i < hypermedia.Hypermedias.Count; ++i)
             {
-                Models.Hypermedia tmpHypermedia = UpdateHypermediaStatus(hypermedia.Hypermedias[i]);
-                if (tmpHypermedia.Status == Status.Checking || tmpHypermedia.Status == Status.Connecting || tmpHypermedia.Status == Status.Downloading || tmpHypermedia.Status == Status.Error || tmpHypermedia.Status == Status.ReadyForDownload || tmpHypermedia.Status == Status.Stopped)
+                Models.Hypermedia tmpHypermedia = UpdateHypermediaStatus(hypermedia.Hypermedias[i], hypermedia.Hypermedias[i].Status);
+                if (!IsHypermediaValid(tmpHypermedia))
                 {
-                    if (!IsHypermediaValid(tmpHypermedia))
-                    {
-                        isAllHypermediasReady = false;
-                    }
+                    isAllHypermediasReady = false;
                 }
                 hypermedia.Hypermedias[i] = tmpHypermedia;
             }
 
-            Status tmpStatus = Status.Seeding;
-            switch (hypermedia.Status)
+            switch (origin)
             {
                 case Status.Checking:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    throw new ArgumentException($"{nameof(origin)} can't be equal to {nameof(Status.Checking)} during status update", nameof(origin));
+                case Status.Completed:
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        hypermedia.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        hypermedia.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    hypermedia.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixHypermediaFileSystemModel(hypermedia))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                hypermedia.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                hypermedia.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
-                    {
-                        hypermedia.Status = tmpStatus;
-                    }
-                    break;
+                    throw new Exception($"{nameof(Hypermedia)} can't be reconstructed");
                 case Status.Seeding:
-                    if (isHypermediaValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
+                    if (isHypermediaValid && isAllDirectoriesReady && isAllFilesReady && isAllHypermediasReady)
                     {
-                        hypermedia.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            hypermedia.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            hypermedia.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        hypermedia.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1633,24 +1989,17 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return hypermedia;
         }
 
-        private Models.Directory UpdateDirectoryStatus(Models.Directory directory)
+        public Models.Directory UpdateDirectoryStatus(Models.Directory directory)
         {
-            string directoryPath = directory.InternalPath;
-
             bool isDirectoryValid = IsDirectoryValid(directory);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(directoryPath).Length == directory.Size;
 
             bool isAllFilesReady = true;
             for (int i = 0; i < directory.Files.Count; ++i)
             {
                 Models.File tmpFile = UpdateFileStatus(directory.Files[i]);
-                if (tmpFile.Status == Status.Checking || tmpFile.Status == Status.Connecting || tmpFile.Status == Status.Downloading || tmpFile.Status == Status.Error || tmpFile.Status == Status.ReadyForDownload || tmpFile.Status == Status.ReadyForReconstruction || tmpFile.Status == Status.Stopped)
+                if (!IsFileValid(tmpFile))
                 {
-                    if (!IsFileValid(tmpFile))
-                    {
-                        isAllFilesReady = false;
-                    }
+                    isAllFilesReady = false;
                 }
                 directory.Files[i] = tmpFile;
             }
@@ -1658,63 +2007,148 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             bool isAllDirectoriesReady = true;
             for (int i = 0; i < directory.Directories.Count; ++i)
             {
-                Models.Directory tmpDirectory  = UpdateDirectoryStatus(directory.Directories[i]);
-                if (tmpDirectory.Status == Status.Checking || tmpDirectory.Status == Status.Connecting || tmpDirectory.Status == Status.Downloading || tmpDirectory.Status == Status.Error || tmpDirectory.Status == Status.ReadyForDownload || tmpDirectory.Status == Status.Stopped)
+                Models.Directory tmpDirectory = UpdateDirectoryStatus(directory.Directories[i]);
+                if (!IsDirectoryValid(tmpDirectory))
                 {
-                    if (!IsDirectoryValid(tmpDirectory))
-                    {
-                        isAllDirectoriesReady = false;
-                    }
+                    isAllDirectoriesReady = false;
                 }
                 directory.Directories[i] = tmpDirectory;
             }
 
-            Status tmpStatus = Status.Seeding;
             switch (directory.Status)
             {
                 case Status.Checking:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    throw new Exception($"{nameof(directory.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        directory.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        directory.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    directory.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixDirectoryFileSystemModel(directory))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                directory.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                directory.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            directory.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
-                    {
-                        directory.Status = tmpStatus;
-                    }
-                    break;
+                    throw new Exception($"{nameof(Directory)} can't be reconstructed");
                 case Status.Seeding:
-                    if (isDirectoryValid && isSizeMatches && isAllDirectoriesReady && isAllFilesReady)
+                    if (isDirectoryValid && isAllDirectoriesReady && isAllFilesReady)
                     {
-                        directory.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            directory.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            directory.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        directory.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1728,14 +2162,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return directory;
         }
 
-        //TODO check what will happen if file is completed or seeding
-        private Models.File UpdateFileStatus(Models.File file)
+        public Models.File UpdateFileStatus(Models.File file)
         {
-            string filePath = file.InternalPath;
-
             bool isFileValid = IsFileValid(file);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(filePath).Length == file.Size;
 
             if (!file.IsSingleBlock) 
             {
@@ -1743,12 +2172,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 for (int i = 0; i < file.Blocks.Count; ++i)
                 {
                     Models.Block tmpBlock = UpdateBlockStatus(file.Blocks[i]);
-                    if (tmpBlock.Status == Status.Checking || tmpBlock.Status == Status.Connecting || tmpBlock.Status == Status.Downloading || tmpBlock.Status == Status.Error || tmpBlock.Status == Status.ReadyForDownload || tmpBlock.Status == Status.Stopped)
+                    if (!IsBlockValid(tmpBlock))
                     {
-                        if (!IsBlockValid(tmpBlock))
-                        {
-                            isAllBlockReady = false;
-                        }
+                        isAllBlockReady = false;
                     }
                     file.Blocks[i] = tmpBlock;
                 }
@@ -1762,56 +2188,152 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                         }
                         file.Status = Status.ReadyForReconstruction;
                     }
+                    return file;
                 }
-                return file;
             }
 
-            Status tmpStatus = Status.Seeding;
             switch (file.Status)
             {
                 case Status.Checking:
-                    if (isFileValid && isSizeMatches)
+                    throw new Exception($"{nameof(file.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        file.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    file.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (CheckAndFixFileFileSystemModel(file))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                file.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                file.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            file.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        file.Status = Status.ReadyForReconstruction;
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
                 case Status.Seeding:
-                    if (isFileValid && isSizeMatches)
+                    if (isFileValid)
                     {
-                        file.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            file.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            file.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        file.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
@@ -1825,57 +2347,152 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return file;
         }
 
-        private Models.Block UpdateBlockStatus(Models.Block block)
+        public Models.Block UpdateBlockStatus(Models.Block block)
         {
-            string blockPath = block.InternalPath;
-
             bool isBlockValid = IsBlockValid(block);
-            //TODO check if works
-            bool isSizeMatches = new System.IO.FileInfo(blockPath).Length == block.Size;
 
-            Status tmpStatus = Status.Seeding;
             switch(block.Status)
             {
                 case Status.Checking:
-                    if (isBlockValid && isSizeMatches)
+                    throw new Exception($"{nameof(block.Status)} can't be equal to {nameof(Status.Checking)} during status update");
+                case Status.Completed:
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        block.Status = Status.Completed;
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
                     }
                     break;
-                case Status.Completed:
-                    block.Status = Status.Completed;
-                    break;
                 case Status.Connecting:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Downloading:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Downloading;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.Error:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if(CheckAndFixBlockFileSystemModel(block))
+                        {
+                            if (_manager.Engine().IsStarted)
+                            {
+                                block.Status = Status.ReadyForDownload;
+                            }
+                            else
+                            {
+                                block.Status = Status.Connecting;
+                            }
+                        }
+                        else
+                        {
+                            block.Status = Status.Error;
+                        }
                     }
                     break;
                 case Status.ReadyForDownload:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.ReadyForDownload;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
                     }
                     break;
                 case Status.ReadyForReconstruction:
-                    block.Status = Status.ReadyForReconstruction;
+                    if (isBlockValid)
+                    {
+                        block.Status = Status.ReadyForReconstruction;
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
+                    }
                     break;
                 case Status.Seeding:
-                    if (isBlockValid && isSizeMatches)
+                    if (isBlockValid)
                     {
-                        block.Status = tmpStatus;
+                        if (_manager.Engine().IsStarted)
+                        {
+                            block.Status = Status.Seeding;
+                        }
+                        else
+                        {
+                            block.Status = Status.Connecting;
+                        }
+                    }
+                    else
+                    {
+                        block.Status = Status.Error;
                     }
                     break;
                 case Status.Stopped:
