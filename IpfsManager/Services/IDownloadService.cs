@@ -1,4 +1,5 @@
 ﻿using Ipfs.Manager.Tools.Options;
+using Ipfs.Manager.Tools.Results;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,15 +9,15 @@ namespace Ipfs.Manager.Services
 {
     public interface IDownloadService
     {
-        bool DownloadHypermedia(Models.Hypermedia hypermedia);
+        Result DownloadHypermedia(Models.Hypermedia hypermedia);
 
-        Task<bool> DownloadHypermediaAsync(Models.Hypermedia hypermedia);
+        Task<Result> DownloadHypermediaAsync(Models.Hypermedia hypermedia);
 
-        bool DownloadHypermedia(Hypermedia.Hypermedia hypermedia, string downloadPath);
+        Result DownloadHypermedia(Hypermedia.Hypermedia hypermedia, string downloadPath);
 
-        Task<bool> DownloadHypermediaAsync(Hypermedia.Hypermedia hypermedia,string downloadPath);
+        Task<Result> DownloadHypermediaAsync(Hypermedia.Hypermedia hypermedia,string downloadPath);
 
-        bool DownloadHypermedia
+        Result DownloadHypermedia
         (
             Hypermedia.Hypermedia hypermedia,
             string downloadPath,
@@ -25,7 +26,7 @@ namespace Ipfs.Manager.Services
             Models.WrappingOptions wrappingOptions
         );
 
-        Task<bool> DownloadHypermediaAsync
+        Task<Result> DownloadHypermediaAsync
         (
             Hypermedia.Hypermedia hypermedia,
             string downloadPath,
@@ -33,6 +34,16 @@ namespace Ipfs.Manager.Services
             bool isContinuousDownloadingEnabled,
             Models.WrappingOptions wrappingOptions
         );
+
+        /*Result ReloadHypermedia(Result result);
+
+        Task<Result> ReloadHypermediaAsync(Result result);*/
+
+        bool ClearCorruptedData(Result result);
+
+        bool ClearAllData(Result result);
+
+        Task<bool> ClearAllDataAsync(Result result);
 
         bool StartDownloadService();
 

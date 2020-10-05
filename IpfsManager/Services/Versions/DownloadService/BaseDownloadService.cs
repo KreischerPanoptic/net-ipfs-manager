@@ -11,6 +11,8 @@ using Ipfs.Manager.Tools.Options;
 using Ipfs.Manager.Models;
 using System.Threading;
 using System.Diagnostics;
+using Ipfs.Manager.Tools.Results;
+using Ipfs.Manager.Tools.Results.EntityResults;
 
 namespace Ipfs.Manager.Services.Versions.DownloadService
 {
@@ -481,26 +483,166 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             }
         }
 
-        public bool DownloadHypermedia(Models.Hypermedia hypermedia)
+        private Tuple<List<IEntityResult>, List<IEntityResult>> GetEntitiesFromHypermediaResult(HypermediaResult hypermedia)
         {
-            _manager.FileSystemService.CreateFileSystemModel(hypermedia);
-            hypermedia = DownloadRawHypermedia(hypermedia);
-            if(hypermedia.Status == Status.Seeding)
+            List<IEntityResult> corrupted = new List<IEntityResult>();
+            List<IEntityResult> completed = new List<IEntityResult>();
+
+            if (hypermedia.Status == EntityDownloadStatus.Completed)
             {
-                return _manager.FileSystemService.ClearTempFileSystem(hypermedia);
+                completed.Add(hypermedia);
             }
             else
             {
-                try
+                corrupted.Add(hypermedia);
+            }
+
+            foreach (var er in hypermedia.Results)
+            {
+                dynamic tuple;
+                if (er is FileResult)
                 {
-                    _manager.FileSystemService.DeleteHypermedia(hypermedia, true);
+                    tuple = GetEntitiesFromFileResult(er as FileResult);
+
                 }
-                catch { };
-                return false;
+                else if (er is DirectoryResult)
+                {
+                    tuple = GetEntitiesFromDirectoryResult(er as DirectoryResult);
+                }
+                else
+                {
+                    tuple = GetEntitiesFromHypermediaResult(er as HypermediaResult);
+                }
+                completed.AddRange(tuple.Item1);
+                corrupted.AddRange(tuple.Item2);
+            }
+
+            return new Tuple<List<IEntityResult>, List<IEntityResult>>(completed, corrupted);
+        }
+
+        private Tuple<List<IEntityResult>, List<IEntityResult>> GetEntitiesFromDirectoryResult(DirectoryResult directory)
+        {
+            List<IEntityResult> corrupted = new List<IEntityResult>();
+            List<IEntityResult> completed = new List<IEntityResult>();
+
+            if (directory.Status == EntityDownloadStatus.Completed)
+            {
+                completed.Add(directory);
+            }
+            else
+            {
+                corrupted.Add(directory);
+            }
+
+            foreach (var er in directory.Results)
+            {
+                dynamic tuple;
+                if (er is FileResult)
+                {
+                    tuple = GetEntitiesFromFileResult(er as FileResult);
+
+                }
+                else
+                {
+                    tuple = GetEntitiesFromDirectoryResult(er as DirectoryResult);
+                }
+                completed.AddRange(tuple.Item1);
+                corrupted.AddRange(tuple.Item2);
+            }
+
+            return new Tuple<List<IEntityResult>, List<IEntityResult>>(completed, corrupted);
+        }
+
+        private Tuple<List<IEntityResult>, List<IEntityResult>> GetEntitiesFromFileResult(FileResult file)
+        {
+            List<IEntityResult> corrupted = new List<IEntityResult>();
+            List<IEntityResult> completed = new List<IEntityResult>();
+
+            if (file.Status == EntityDownloadStatus.Completed)
+            {
+                completed.Add(file);
+            }
+            else
+            {
+                corrupted.Add(file);
+            }
+
+            foreach (var br in file.BlockResults)
+            {
+                var tuple = GetEntitiesFromBlockResult(br);
+                completed.AddRange(tuple.Item1);
+                corrupted.AddRange(tuple.Item2);
+            }
+
+            return new Tuple<List<IEntityResult>, List<IEntityResult>>(completed, corrupted);
+        }
+
+        private Tuple<List<IEntityResult>, List<IEntityResult>> GetEntitiesFromBlockResult(BlockResult block)
+        {
+            List<IEntityResult> corrupted = new List<IEntityResult>();
+            List<IEntityResult> completed = new List<IEntityResult>();
+
+            if (block.Status == EntityDownloadStatus.Completed)
+            {
+                completed.Add(block);
+            }
+            else
+            {
+                corrupted.Add(block);
+            }
+
+            return new Tuple<List<IEntityResult>, List<IEntityResult>>(completed, corrupted);
+        }
+
+        public Result DownloadHypermedia(Models.Hypermedia hypermedia)
+        {
+            Result result;
+            _manager.FileSystemService.CreateFileSystemModel(hypermedia);
+            var hypermediaResult = DownloadRawHypermedia(hypermedia);
+            hypermedia = hypermediaResult.GetHypermedia();
+            var tuple = GetEntitiesFromHypermediaResult(hypermediaResult);
+            if (hypermediaResult.Status == EntityDownloadStatus.Completed)
+            {
+                if (_manager.FileSystemService.ClearTempFileSystem(hypermedia))
+                {
+                    result = new Result()
+                    {
+                        Status = ResultStatus.Completed,
+                        Comment = "Download Successful. All temporary data cleared",
+                        Hypermedia = hypermediaResult,
+                        CompletedEntities = tuple.Item1,
+                        CorruptedEntities = tuple.Item2
+                    };
+                    return result;
+                }
+                else
+                {
+                    result = new Result()
+                    {
+                        Status = ResultStatus.Error,
+                        Comment = "Error encountered during temporary data cleaning",
+                        Hypermedia = hypermediaResult,
+                        CompletedEntities = tuple.Item1,
+                        CorruptedEntities = tuple.Item2
+                    };
+                    return result;
+                }
+            }
+            else
+            {
+                result = new Result()
+                {
+                    Status = ResultStatus.Error,
+                    Comment = "Error encountered during download. Temporary data saved. Reloading possible",
+                    Hypermedia = hypermediaResult,
+                    CompletedEntities = tuple.Item1,
+                    CorruptedEntities = tuple.Item2
+                };
+                return result;
             }
         }
 
-        public bool DownloadHypermedia(Hypermedia.Hypermedia hypermedia, string downloadPath)
+        public Result DownloadHypermedia(Hypermedia.Hypermedia hypermedia, string downloadPath)
         {
             var converted = _manager.HypermediaService.ConvertToRealmModel
             (
@@ -512,7 +654,7 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             return DownloadHypermedia(converted);
         }
 
-        public bool DownloadHypermedia
+        public Result DownloadHypermedia
         (
             Hypermedia.Hypermedia hypermedia,
             string downloadPath,
@@ -536,26 +678,55 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             return DownloadHypermedia(converted);
         }
 
-        public async Task<bool> DownloadHypermediaAsync(Models.Hypermedia hypermedia)
+        public async Task<Result> DownloadHypermediaAsync(Models.Hypermedia hypermedia)
         {
+            Result result;
             _manager.FileSystemService.CreateFileSystemModel(hypermedia);
-            hypermedia = await DownloadRawHypermediaAsync(hypermedia);
-            if (hypermedia.Status == Status.Seeding)
+            var hypermediaResult = await DownloadRawHypermediaAsync(hypermedia);
+            hypermedia = hypermediaResult.GetHypermedia();
+            var tuple = GetEntitiesFromHypermediaResult(hypermediaResult);
+            if (hypermediaResult.Status == EntityDownloadStatus.Completed)
             {
-                return _manager.FileSystemService.ClearTempFileSystem(hypermedia);
+                if (_manager.FileSystemService.ClearTempFileSystem(hypermedia))
+                {
+                    result = new Result()
+                    {
+                        Status = ResultStatus.Completed,
+                        Comment = "Download Successful. All temporary data cleared",
+                        Hypermedia = hypermediaResult,
+                        CompletedEntities = tuple.Item1,
+                        CorruptedEntities = tuple.Item2
+                    };
+                    return result;
+                }
+                else
+                {
+                    result = new Result()
+                    {
+                        Status = ResultStatus.Error,
+                        Comment = "Error encountered during temporary data cleaning",
+                        Hypermedia = hypermediaResult,
+                        CompletedEntities = tuple.Item1,
+                        CorruptedEntities = tuple.Item2
+                    };
+                    return result;
+                }
             }
             else
             {
-                try
+                result = new Result()
                 {
-                    _manager.FileSystemService.DeleteHypermedia(hypermedia, true);
-                }
-                catch { };
-                return false;
+                    Status = ResultStatus.Error,
+                    Comment = "Error encountered during download",
+                    Hypermedia = hypermediaResult,
+                    CompletedEntities = tuple.Item1,
+                    CorruptedEntities = tuple.Item2
+                };
+                return result;
             }
         }
 
-        public async Task<bool> DownloadHypermediaAsync(Hypermedia.Hypermedia hypermedia, string downloadPath)
+        public async Task<Result> DownloadHypermediaAsync(Hypermedia.Hypermedia hypermedia, string downloadPath)
         {
             var converted = await _manager.HypermediaService.ConvertToRealmModelAsync
             (
@@ -567,7 +738,7 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             return await DownloadHypermediaAsync(converted);
         }
 
-        public async Task<bool> DownloadHypermediaAsync
+        public async Task<Result> DownloadHypermediaAsync
         (
             Hypermedia.Hypermedia hypermedia,
             string downloadPath,
@@ -591,78 +762,358 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             return await DownloadHypermediaAsync(converted);
         }
 
-        private async Task<Models.Hypermedia> DownloadRawHypermediaAsync(Models.Hypermedia hypermedia)
+        //TODO: rewrite
+        //public Result ReloadHypermedia(Result result)
+        //{
+        //    bool isCorruptionCleared = ClearCorruptedData(result);
+        //    if(isCorruptionCleared)
+        //    {
+        //        List<Tuple<IEntityResult, IEntityResult>> fixedEntities = new List<Tuple<IEntityResult, IEntityResult>>();
+        //        List<Tuple<IEntityResult, IEntityResult>> corruptedEntities = new List<Tuple<IEntityResult, IEntityResult>>();
+        //        for(int i = 0; i < result.CorruptedEntities.Count; ++i)
+        //        {
+        //            if (result.CorruptedEntities[i] is BlockResult)
+        //            {
+        //                var block = (result.CorruptedEntities[i] as BlockResult).GetBlock();
+        //                if (!System.IO.Directory.Exists(block.Parent.BlockStorePath))
+        //                {
+        //                    throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //                }
+        //                else 
+        //                {
+        //                    if(System.IO.File.Exists(block.InternalPath))
+        //                    {
+        //                        try
+        //                        {
+        //                            System.IO.File.Delete(block.InternalPath);
+        //                        }
+        //                        catch
+        //                        {
+        //                            throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        try
+        //                        {
+        //                            System.IO.File.Create(block.InternalPath);
+        //                        }
+        //                        catch
+        //                        {
+        //                            throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //                        }
+        //                    }
+
+        //                    var blockResult = DownloadBlock(block);
+        //                    if(blockResult.Status == EntityDownloadStatus.Completed)
+        //                    {
+        //                        fixedEntities.Add(new Tuple<IEntityResult, IEntityResult>(result.CorruptedEntities[i], blockResult));
+        //                    }
+        //                    else
+        //                    {
+        //                        corruptedEntities.Add(new Tuple<IEntityResult, IEntityResult>(result.CorruptedEntities[i], blockResult));
+        //                    }
+        //                }
+        //            }
+        //            else if (result.CorruptedEntities[i] is FileResult)
+        //            {
+        //                var file = (result.CorruptedEntities[i] as FileResult).GetFile();
+        //                if (file.IsSingleBlock)
+        //                {
+        //                    if (System.IO.File.Exists(file.InternalPath))
+        //                    {
+        //                        try
+        //                        {
+        //                            System.IO.File.Delete(file.InternalPath);
+        //                        }
+        //                        catch
+        //                        {
+        //                            throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        try
+        //                        {
+        //                            System.IO.File.Create(file.InternalPath);
+        //                        }
+        //                        catch
+        //                        {
+        //                            throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //                        }
+        //                    }
+
+        //                    var fileResult = DownloadFile(file);
+        //                    if (fileResult.Status == EntityDownloadStatus.Completed)
+        //                    {
+        //                        fixedEntities.Add(new Tuple<IEntityResult, IEntityResult>(result.CorruptedEntities[i], fileResult));
+        //                    }
+        //                    else
+        //                    {
+        //                        corruptedEntities.Add(new Tuple<IEntityResult, IEntityResult>(result.CorruptedEntities[i], fileResult));
+        //                    }
+        //                }
+        //            }
+        //        }
+
+        //        foreach()
+        //    }
+        //    else
+        //    {
+        //        throw new ArgumentException($"Corruption of {nameof(result)} is beyond repair", nameof(result));
+        //    }
+        //}
+
+        //public Task<Result> ReloadHypermediaAsync(Result result)
+        //{
+
+        //}
+
+        public bool ClearCorruptedData(Result result)
         {
+            if(result.Status == ResultStatus.Completed)
+            {
+                return false;
+            }
+            if (result.CorruptedEntities.Count <= 0)
+            {
+                return false;
+            }
+            else
+            {
+                foreach (var e in result.CorruptedEntities)
+                {
+                    if (e is BlockResult)
+                    {
+                        try
+                        {
+                            System.IO.File.Delete(e.InternalPath);
+                        }
+                        catch
+                        {
+                            return false;
+                        }
+                    }
+                    else if(e is FileResult)
+                    {
+                        if((e as FileResult).GetFile().IsSingleBlock)
+                        {
+                            try
+                            {
+                                System.IO.File.Delete(e.InternalPath);
+                            }
+                            catch
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        public bool ClearAllData(Result result)
+        {
+            var hypermedia = result.Hypermedia.GetHypermedia();
+            return _manager.FileSystemService.DeleteHypermedia(hypermedia, true);
+        }
+
+        public async Task<bool> ClearAllDataAsync(Result result)
+        {
+            var hypermedia = result.Hypermedia.GetHypermedia();
+            return await _manager.FileSystemService.DeleteHypermediaAsync(hypermedia, true);
+        }
+
+        private async Task<HypermediaResult> DownloadRawHypermediaAsync(Models.Hypermedia hypermedia)
+        {
+            HypermediaResult result;
+            List<IEntityResult> entityResults = new List<IEntityResult>();
+
             for (int i = 0; i < hypermedia.Files.Count; ++i)
             {
-                hypermedia.Files[i] = await DownloadFileAsync(hypermedia.Files[i]);
+                var hypermediaResult = await DownloadFileAsync(hypermedia.Files[i]);
+                hypermedia.Files[i] = hypermediaResult.GetFile();
+                entityResults.Add(hypermediaResult);
                 hypermedia = await _manager.FileSystemService.UpdateStatusAsync(hypermedia, hypermedia.Status);
             }
             for (int i = 0; i < hypermedia.Directories.Count; ++i)
             {
-                hypermedia.Directories[i] = await DownloadDirectoryAsync(hypermedia.Directories[i]);
+                var directoryResult = await DownloadDirectoryAsync(hypermedia.Directories[i]);
+                hypermedia.Directories[i] = directoryResult.GetDirectory();
+                entityResults.Add(directoryResult);
                 hypermedia = await _manager.FileSystemService.UpdateStatusAsync(hypermedia, hypermedia.Status);
             }
             for (int i = 0; i < hypermedia.Hypermedias.Count; ++i)
             {
-                hypermedia.Hypermedias[i] = await DownloadRawHypermediaAsync(hypermedia.Hypermedias[i]);
+                var hypermediaResult = await DownloadRawHypermediaAsync(hypermedia.Hypermedias[i]);
+                hypermedia.Hypermedias[i] = hypermediaResult.GetHypermedia();
+                entityResults.Add(hypermediaResult);
                 hypermedia = await _manager.FileSystemService.UpdateStatusAsync(hypermedia, hypermedia.Status);
             }
-            return await _manager.FileSystemService.UpdateStatusAsync(hypermedia, hypermedia.Status);
+
+            bool isCompleted = true;
+            foreach (var er in entityResults)
+            {
+                if (er.Status != EntityDownloadStatus.Completed)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if (isCompleted)
+            {
+                result = new HypermediaResult(await _manager.FileSystemService.UpdateStatusAsync(hypermedia, hypermedia.Status), EntityDownloadStatus.Completed, "Download Successful");
+                result.Results = entityResults;
+                return result;
+            }
+            else
+            {
+                result = new HypermediaResult(hypermedia, EntityDownloadStatus.UnknownError, "Error occured during entities download");
+                result.Results = entityResults;
+                return result;
+            }
         }
 
-        private Models.Hypermedia DownloadRawHypermedia(Models.Hypermedia hypermedia)
+        private HypermediaResult DownloadRawHypermedia(Models.Hypermedia hypermedia)
         {
+            HypermediaResult result;
+            List<IEntityResult> entityResults = new List<IEntityResult>();
+
             for (int i = 0; i < hypermedia.Files.Count; ++i)
             {
-                hypermedia.Files[i] = DownloadFile(hypermedia.Files[i]);
+                var hypermediaResult = DownloadFile(hypermedia.Files[i]);
+                hypermedia.Files[i] = hypermediaResult.GetFile();
+                entityResults.Add(hypermediaResult);
                 hypermedia = _manager.FileSystemService.UpdateStatus(hypermedia, hypermedia.Status);
             }
             for (int i = 0; i < hypermedia.Directories.Count; ++i)
             {
-                hypermedia.Directories[i] = DownloadDirectory(hypermedia.Directories[i]);
+                var directoryResult = DownloadDirectory(hypermedia.Directories[i]);
+                hypermedia.Directories[i] = directoryResult.GetDirectory();
+                entityResults.Add(directoryResult);
                 hypermedia = _manager.FileSystemService.UpdateStatus(hypermedia, hypermedia.Status);
             }
             for (int i = 0; i < hypermedia.Hypermedias.Count; ++i)
             {
-                hypermedia.Hypermedias[i] = DownloadRawHypermedia(hypermedia.Hypermedias[i]);
+                var hypermediaResult = DownloadRawHypermedia(hypermedia.Hypermedias[i]);
+                hypermedia.Hypermedias[i] = hypermediaResult.GetHypermedia();
+                entityResults.Add(hypermediaResult);
                 hypermedia = _manager.FileSystemService.UpdateStatus(hypermedia, hypermedia.Status);
             }
-            return _manager.FileSystemService.UpdateStatus(hypermedia, hypermedia.Status);
+
+            bool isCompleted = true;
+            foreach (var er in entityResults)
+            {
+                if (er.Status != EntityDownloadStatus.Completed)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if (isCompleted)
+            {
+                result = new HypermediaResult(_manager.FileSystemService.UpdateStatus(hypermedia, hypermedia.Status), EntityDownloadStatus.Completed, "Download Successful");
+                result.Results = entityResults;
+                return result;
+            }
+            else
+            {
+                result = new HypermediaResult(hypermedia, EntityDownloadStatus.UnknownError, "Error occured during entities download");
+                result.Results = entityResults;
+                return result;
+            }
         }
 
-        private async Task<Models.Directory> DownloadDirectoryAsync(Models.Directory directory)
+        private async Task<DirectoryResult> DownloadDirectoryAsync(Models.Directory directory)
         {
+            DirectoryResult result;
+            List<IEntityResult> entityResults = new List<IEntityResult>();
+
             for (int i = 0; i < directory.Files.Count; ++i)
             {
-                directory.Files[i] = await DownloadFileAsync(directory.Files[i]);
+                var fileResult = await DownloadFileAsync(directory.Files[i]);
+                directory.Files[i] = fileResult.GetFile();
+                entityResults.Add(fileResult);
                 directory = await _manager.FileSystemService.UpdateDirectoryStatusAsync(directory);
             }
             for (int i = 0; i < directory.Directories.Count; ++i)
             {
-                directory.Directories[i] = await DownloadDirectoryAsync(directory.Directories[i]);
+                var directoryResult = await DownloadDirectoryAsync(directory.Directories[i]);
+                directory.Directories[i] = directoryResult.GetDirectory();
+                entityResults.Add(directoryResult);
                 directory = await _manager.FileSystemService.UpdateDirectoryStatusAsync(directory);
             }
-            return await _manager.FileSystemService.UpdateDirectoryStatusAsync(directory);
+
+            bool isCompleted = true;
+            foreach (var er in entityResults)
+            {
+                if (er.Status != EntityDownloadStatus.Completed)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if (isCompleted)
+            {
+                result = new DirectoryResult(await _manager.FileSystemService.UpdateDirectoryStatusAsync(directory), EntityDownloadStatus.Completed, "Download Successful");
+                result.Results = entityResults;
+                return result;
+            }
+            else
+            {
+                result = new DirectoryResult(directory, EntityDownloadStatus.UnknownError, "Error occured during entities download");
+                result.Results = entityResults;
+                return result;
+            }
         }
 
-        private Models.Directory DownloadDirectory(Models.Directory directory)
+        private DirectoryResult DownloadDirectory(Models.Directory directory)
         {
+            DirectoryResult result;
+            List<IEntityResult> entityResults = new List<IEntityResult>();
+
             for(int i = 0; i < directory.Files.Count; ++i)
             {
-                directory.Files[i] = DownloadFile(directory.Files[i]);
+                var fileResult = DownloadFile(directory.Files[i]);
+                directory.Files[i] = fileResult.GetFile();
+                entityResults.Add(fileResult);
                 directory = _manager.FileSystemService.UpdateDirectoryStatus(directory);
             }
             for(int i = 0; i < directory.Directories.Count; ++i)
             {
-                directory.Directories[i] = DownloadDirectory(directory.Directories[i]);
+                var directoryResult = DownloadDirectory(directory.Directories[i]);
+                directory.Directories[i] = directoryResult.GetDirectory();
+                entityResults.Add(directoryResult);
                 directory = _manager.FileSystemService.UpdateDirectoryStatus(directory);
             }
-            return _manager.FileSystemService.UpdateDirectoryStatus(directory);
+
+            bool isCompleted = true;
+            foreach(var er in entityResults)
+            {
+                if(er.Status != EntityDownloadStatus.Completed)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if(isCompleted)
+            {
+                result = new DirectoryResult(_manager.FileSystemService.UpdateDirectoryStatus(directory), EntityDownloadStatus.Completed, "Download Successful");
+                result.Results = entityResults;
+                return result;
+            }
+            else
+            {
+                result = new DirectoryResult(directory, EntityDownloadStatus.UnknownError, "Error occured during entities download");
+                result.Results = entityResults;
+                return result;
+            }
         }
 
-        private async Task<Models.File> DownloadFileAsync(Models.File file)
+        private async Task<FileResult> DownloadFileAsync(Models.File file)
         {
+            FileResult result;
             if (file.IsSingleBlock)
             {
                 Task<System.IO.Stream> fileStream = null;
@@ -676,18 +1127,14 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
-                    bool isTimeout = false, isTaskCompleted = false;
+                    bool isTaskCompleted = false;
 
-                    while (!isTimeout && !isTaskCompleted)
+                    while (!isTaskCompleted)
                     {
-                        if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                        if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
                         {
-                            isTimeout = true;
-                            if (fileStream.Status != TaskStatus.RanToCompletion)
-                            {
-                                source.Cancel();
-                                break;
-                            }
+                            result = new FileResult(file, EntityDownloadStatus.TimeoutError, "Encountered timeout error, while trying to download file");
+                            return result;
                         }
 
                         if (fileStream.Status == TaskStatus.RanToCompletion)
@@ -699,36 +1146,79 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
                 }
                 while (token.IsCancellationRequested);
 
-                using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
+                try
                 {
-                    fileStream.Result.CopyTo(fs);
+                    using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
+                    {
+                        fileStream.Result.CopyTo(fs);
+                    }
+                    fileStream.Result.Close();
+                }
+                catch (Exception e)
+                {
+                    result = new FileResult(file, EntityDownloadStatus.FileSystemError, $"Encountered filesystem error: {e.Message}");
+                    return result;
                 }
 
-                fileStream.Result.Close();
+                result = new FileResult(_manager.FileSystemService.UpdateFileStatus(file), EntityDownloadStatus.Completed, "Download Successful");
+                return result;
             }
             else
             {
+                List<BlockResult> blockResults = new List<BlockResult>();
                 for (int i = 0; i < file.Blocks.Count; ++i)
                 {
-                    file.Blocks[i] = await DownloadBlockAsync(file.Blocks[i]);
+                    var br = await DownloadBlockAsync(file.Blocks[i]);
+                    blockResults.Add(br);
+                    file.Blocks[i] = br.GetBlock();
                 }
 
-                file = await _manager.FileSystemService.UpdateFileStatusAsync(file);
-                if (file.Status == Status.ReadyForReconstruction)
+                bool isCompleted = true;
+                foreach (var br in blockResults)
                 {
-                    _manager.FileSystemService.ReconstructFile(file);
+                    if (br.Status != EntityDownloadStatus.Completed)
+                    {
+                        isCompleted = false;
+                    }
+                }
+
+                if (isCompleted)
+                {
+                    file = await _manager.FileSystemService.UpdateFileStatusAsync(file);
+                    if (file.Status == Status.ReadyForReconstruction)
+                    {
+                        if (_manager.FileSystemService.ReconstructFile(file))
+                        {
+                            result = new FileResult(await _manager.FileSystemService.UpdateFileStatusAsync(file), EntityDownloadStatus.Completed, "Download Successful");
+                            result.BlockResults = blockResults;
+                            return result;
+                        }
+                        else
+                        {
+                            result = new FileResult(file, EntityDownloadStatus.FileSystemError, "Unknown error during reconstruction proccess");
+                            result.BlockResults = blockResults;
+                            return result;
+                        }
+                    }
+                    else
+                    {
+                        result = new FileResult(file, EntityDownloadStatus.UnknownError, "Unknown error during reconstruction preparations");
+                        result.BlockResults = blockResults;
+                        return result;
+                    }
                 }
                 else
                 {
-                    throw new Exception("Unexpected behaviour");
+                    result = new FileResult(file, EntityDownloadStatus.UnknownError, "Error occured during blocks download");
+                    result.BlockResults = blockResults;
+                    return result;
                 }
             }
-
-            return await _manager.FileSystemService.UpdateFileStatusAsync(file);
         }
 
-        private Models.File DownloadFile(Models.File file)
+        private FileResult DownloadFile(Models.File file)
         {
+            FileResult result;
             if(file.IsSingleBlock)
             {
                 Task<System.IO.Stream> fileStream = null;
@@ -742,18 +1232,14 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
-                    bool isTimeout = false, isTaskCompleted = false;
+                    bool isTaskCompleted = false;
 
-                    while (!isTimeout && !isTaskCompleted)
+                    while (!isTaskCompleted)
                     {
-                        if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                        if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
                         {
-                            isTimeout = true;
-                            if (fileStream.Status != TaskStatus.RanToCompletion)
-                            {
-                                source.Cancel();
-                                break;
-                            }
+                            result = new FileResult(file, EntityDownloadStatus.TimeoutError, "Encountered timeout error, while trying to download file");
+                            return result;
                         }
 
                         if (fileStream.Status == TaskStatus.RanToCompletion)
@@ -765,36 +1251,79 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
                 }
                 while (token.IsCancellationRequested);
 
-                using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
+                try
                 {
-                    fileStream.Result.CopyTo(fs);
+                    using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
+                    {
+                        fileStream.Result.CopyTo(fs);
+                    }
+                    fileStream.Result.Close();
+                }
+                catch (Exception e)
+                {
+                    result = new FileResult(file, EntityDownloadStatus.FileSystemError, $"Encountered filesystem error: {e.Message}");
+                    return result;
                 }
 
-                fileStream.Result.Close();
+                result = new FileResult(_manager.FileSystemService.UpdateFileStatus(file), EntityDownloadStatus.Completed, "Download Successful");
+                return result;
             }
             else
             {
+                List<BlockResult> blockResults = new List<BlockResult>();
                 for(int i = 0; i < file.Blocks.Count; ++i)
                 {
-                    file.Blocks[i] = DownloadBlock(file.Blocks[i]);
+                    var br = DownloadBlock(file.Blocks[i]);
+                    blockResults.Add(br);
+                    file.Blocks[i] = br.GetBlock();
                 }
 
-                file = _manager.FileSystemService.UpdateFileStatus(file);
-                if (file.Status == Status.ReadyForReconstruction)
+                bool isCompleted = true;
+                foreach(var br in blockResults)
                 {
-                    _manager.FileSystemService.ReconstructFile(file);
+                    if(br.Status != EntityDownloadStatus.Completed)
+                    {
+                        isCompleted = false;
+                    }
+                }
+
+                if (isCompleted)
+                {
+                    file = _manager.FileSystemService.UpdateFileStatus(file);
+                    if (file.Status == Status.ReadyForReconstruction)
+                    {
+                        if (_manager.FileSystemService.ReconstructFile(file))
+                        {
+                            result = new FileResult(_manager.FileSystemService.UpdateFileStatus(file), EntityDownloadStatus.Completed, "Download Successful");
+                            result.BlockResults = blockResults;
+                            return result;
+                        }
+                        else
+                        {
+                            result = new FileResult(file, EntityDownloadStatus.FileSystemError, "Unknown error during reconstruction proccess");
+                            result.BlockResults = blockResults;
+                            return result;
+                        }
+                    }
+                    else
+                    {
+                        result = new FileResult(file, EntityDownloadStatus.UnknownError, "Unknown error during reconstruction preparations");
+                        result.BlockResults = blockResults;
+                        return result;
+                    }
                 }
                 else
                 {
-                    throw new Exception("Unexpected behaviour");
+                    result = new FileResult(file, EntityDownloadStatus.UnknownError, "Error occured during blocks download");
+                    result.BlockResults = blockResults;
+                    return result;
                 }
             }
-
-            return _manager.FileSystemService.UpdateFileStatus(file);
         }
 
-        private async Task<Models.Block> DownloadBlockAsync(Models.Block block)
+        private async Task<BlockResult> DownloadBlockAsync(Models.Block block)
         {
+            BlockResult result;
             Task<System.IO.Stream> blockStream = null;
             CancellationToken token;
             do
@@ -806,18 +1335,14 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
-                bool isTimeout = false, isTaskCompleted = false;
+                bool isTaskCompleted = false;
 
-                while (!isTimeout && !isTaskCompleted)
+                while (!isTaskCompleted)
                 {
-                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
                     {
-                        isTimeout = true;
-                        if (blockStream.Status != TaskStatus.RanToCompletion)
-                        {
-                            source.Cancel();
-                            break;
-                        }
+                        result = new BlockResult(block, EntityDownloadStatus.TimeoutError, "Encountered timeout error, while trying to download block");
+                        return result;
                     }
 
                     if (blockStream.Status == TaskStatus.RanToCompletion)
@@ -829,18 +1354,27 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             }
             while (token.IsCancellationRequested);
 
-            using (var fs = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
+            try
             {
-                blockStream.Result.CopyTo(fs);
+                using (var fs = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
+                {
+                    blockStream.Result.CopyTo(fs);
+                }
+                blockStream.Result.Close();
+            }
+            catch (Exception e)
+            {
+                result = new BlockResult(block, EntityDownloadStatus.FileSystemError, $"Encountered filesystem error: {e.Message}");
+                return result;
             }
 
-            blockStream.Result.Close();
-
-            return await _manager.FileSystemService.UpdateBlockStatusAsync(block);
+            result = new BlockResult(await _manager.FileSystemService.UpdateBlockStatusAsync(block), EntityDownloadStatus.Completed, "Download Successful");
+            return result;
         }
 
-        private Models.Block DownloadBlock(Models.Block block)
+        private BlockResult DownloadBlock(Models.Block block)
         {
+            BlockResult result;
             Task<System.IO.Stream> blockStream = null;
             CancellationToken token;
             do
@@ -852,18 +1386,14 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
-                bool isTimeout = false, isTaskCompleted = false;
+                bool isTaskCompleted = false;
 
-                while (!isTimeout && !isTaskCompleted)
+                while (!isTaskCompleted)
                 {
-                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(15))
+                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
                     {
-                        isTimeout = true;
-                        if (blockStream.Status != TaskStatus.RanToCompletion)
-                        {
-                            source.Cancel();
-                            break;
-                        }
+                        result = new BlockResult(block, EntityDownloadStatus.TimeoutError, "Encountered timeout error, while trying to download block");
+                        return result;
                     }
 
                     if (blockStream.Status == TaskStatus.RanToCompletion)
@@ -875,14 +1405,22 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
             }
             while (token.IsCancellationRequested);
 
-            using(var fs = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
+            try
             {
-                blockStream.Result.CopyTo(fs);
+                using (var fs = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
+                {
+                    blockStream.Result.CopyTo(fs);
+                }
+                blockStream.Result.Close();
+            }
+            catch (Exception e)
+            {
+                result = new BlockResult(block, EntityDownloadStatus.FileSystemError, $"Encountered filesystem error: {e.Message}");
+                return result;
             }
 
-            blockStream.Result.Close();
-
-            return _manager.FileSystemService.UpdateBlockStatus(block);
+            result = new BlockResult(_manager.FileSystemService.UpdateBlockStatus(block), EntityDownloadStatus.Completed, "Download Successful");
+            return result;
         }
 
         public bool StartAllDownloads()
