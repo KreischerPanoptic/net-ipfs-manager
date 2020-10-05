@@ -529,7 +529,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             {
                 path = downloadPath;
             }
-            //TODO add logic for download location verification according to WrappingOptions (possibly in download service)
+
             Models.Hypermedia realmHypermedia = new Models.Hypermedia
             {
                 Path = hypermedia.Path,
@@ -554,7 +554,6 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 Hash = hypermedia.Hash,
                 ProgressRaw = 0.0,
                 QueuePosition = queuePosition,
-                //TODO: Add database logic to add into list of hypermedias only hypermedias without parent
                 Parent = null,
                 Version = hypermedia.Version,
                 Index = -1
@@ -760,6 +759,22 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 throw new ArgumentException("Unknown parent type", nameof(parent));
             }
 
+            string blockStore = string.Empty;
+            if (parent is Models.Directory)
+            {
+                Models.Directory directory = parent as Models.Directory;
+                blockStore = System.IO.Path.Combine(directory.InternalPath, $"{file.Path}_blocks");
+            }
+            else if (parent is Models.Hypermedia)
+            {
+                Models.Hypermedia hypermedia = parent as Models.Hypermedia;
+                blockStore = System.IO.Path.Combine(hypermedia.InternalPath, $"{file.Path}_blocks");
+            }
+            else
+            {
+                throw new ArgumentException("Unknown parent type", nameof(parent));
+            }
+
             Models.File realmFile = new Models.File
             {
                 Path = file.Path,
@@ -768,6 +783,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
                 Attributes = file.Attributes,
                 ProgressRaw = 0.0,
                 InternalPath = path,
+                BlockStorePath = blockStore,
                 IsSingleBlock = file.IsSingleBlock,
                 LastModifiedDateTime = file.LastModifiedDateTime,
                 Priority = priority,
@@ -804,7 +820,7 @@ namespace Ipfs.Manager.Services.Versions.HypermediaService
             {
                 throw new ArgumentException("Metadata parent and Realm object parent does not match!", nameof(parent));
             }
-            string path = System.IO.Path.Combine(parent.InternalPath, $"{parent.Path}_blocks", $"{block.Path}.block");
+            string path = System.IO.Path.Combine(parent.BlockStorePath, $"{block.Path}.block");
             Models.Block realmBlock = new Models.Block
             {
                 Path = block.Path,
