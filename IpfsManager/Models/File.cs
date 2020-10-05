@@ -46,6 +46,7 @@ namespace Ipfs.Manager.Models
         public double ProgressRaw { get; set; }
         [Indexed]
         public string InternalPath { get; set; }
+        public string BlockStorePath { get; set; }
         public int PriorityRaw { get; set; }
         [Ignored]
         public Priority Priority
