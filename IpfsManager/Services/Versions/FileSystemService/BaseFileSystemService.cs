@@ -55,16 +55,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
 
             foreach (var f in filesToBeCleaned)
             {
-                string blockStorage = System.IO.Path.Combine(f.InternalPath, $"{f.Path}_blocks");
-                //TODO check if block storage path is correct 
-                foreach(var b in f.Blocks)
-                {
-                    if(new string(b.InternalPath.Reverse().SkipWhile(x => x != '\\').Skip(1).Reverse().ToArray()) != blockStorage)
-                    {
-                        return false;
-                    }
-                }
-                pathes.Add(blockStorage);
+                pathes.Add(f.BlockStorePath);
             }
 
             foreach(var p in pathes)
@@ -259,10 +250,9 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     System.IO.File.Create(basePath);
-                    if (!System.IO.Directory.Exists(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks")))
+                    if (!System.IO.Directory.Exists(file.BlockStorePath))
                     {
-                        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
-                        var di = new System.IO.DirectoryInfo(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                        var di = System.IO.Directory.CreateDirectory(file.BlockStorePath);
                         di.Attributes = System.IO.FileAttributes.Directory | System.IO.FileAttributes.Hidden;
                     }
                 }
@@ -458,7 +448,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             try
             {
                 System.IO.File.Create(basePath);
-                var di = System.IO.Directory.CreateDirectory(System.IO.Path.Combine(file.InternalPath, $"{file.Path}_blocks"));
+                var di = System.IO.Directory.CreateDirectory(file.BlockStorePath);
                 di.Attributes = System.IO.FileAttributes.Directory | System.IO.FileAttributes.Hidden;
             }
             catch
@@ -516,41 +506,58 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
             return true;
         }
 
+        public async Task<bool> DeleteHypermediaAsync(Models.Hypermedia hypermedia)
+        {
+            return await DeleteHypermediaAsync(hypermedia, false);
+        }
+
         public bool DeleteHypermedia(Models.Hypermedia hypermedia)
         {
             return DeleteHypermedia(hypermedia, false);
         }
 
-        public bool DeleteHypermedia(Models.Hypermedia hypermedia, bool isFileDeletionRequested)
+        public async Task<bool> DeleteHypermediaAsync(Models.Hypermedia hypermedia, bool isFileDeletionRequested)
         {
             if (!System.IO.Directory.Exists(hypermedia.InternalPath))
             {
                 throw new ArgumentException("Hypermedia download path does not exist", nameof(hypermedia));
             }
 
+            bool isAllDone = true;
             foreach (var f in hypermedia.Files)
             {
-                if (!UnpinFile(f))
+                if (!await UnpinFileAsync(f))
                 {
-                    return false;
+                    isAllDone = false;
                 }
-                if(isFileDeletionRequested)
+                if (isFileDeletionRequested)
                 {
                     try
                     {
                         System.IO.File.Delete(f.InternalPath);
+                        if(System.IO.Directory.Exists(f.BlockStorePath))
+                        {
+                            try
+                            {
+                                System.IO.Directory.Delete(f.BlockStorePath, true);
+                            }
+                            catch
+                            {
+                                isAllDone = false;
+                            }
+                        }
                     }
                     catch
                     {
-                        return false;
+                        isAllDone = false;
                     }
                 }
             }
             foreach (var d in hypermedia.Directories)
             {
-                if (!UnpinDirectory(d))
+                if (!await UnpinDirectoryAsync(d))
                 {
-                    return false;
+                    isAllDone = false;
                 }
                 if (isFileDeletionRequested)
                 {
@@ -560,28 +567,36 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                     }
                     catch
                     {
-                        return false;
+                        isAllDone = false;
                     }
                 }
             }
             foreach (var h in hypermedia.Hypermedias)
             {
-                if (!UnpinHypermedia(h))
+                if (h.WrappingOptions == WrappingOptions.SubDirectory)
                 {
-                    return false;
-                }
-                if (isFileDeletionRequested)
-                {
-                    try
+                    if (!await UnpinHypermediaAsync(h))
                     {
-                        if (h.WrappingOptions == WrappingOptions.SubDirectory)
+                        isAllDone = false;
+                    }
+
+                    if (isFileDeletionRequested)
+                    {
+                        try
                         {
                             System.IO.Directory.Delete(h.InternalPath, true);
                         }
+                        catch
+                        {
+                            isAllDone = false;
+                        }
                     }
-                    catch
+                }
+                else
+                {
+                    if (!await DeleteHypermediaAsync(h, isFileDeletionRequested))
                     {
-                        return false;
+                        isAllDone = false;
                     }
                 }
             }
@@ -597,76 +612,257 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 }
                 catch
                 {
-                    return false;
+                    isAllDone = false;
                 }
             }
 
-            return true;
+            return isAllDone;
         }
 
-        private bool UnpinHypermedia(Models.Hypermedia hypermedia)
+        public bool DeleteHypermedia(Models.Hypermedia hypermedia, bool isFileDeletionRequested)
         {
+            if (!System.IO.Directory.Exists(hypermedia.InternalPath))
+            {
+                throw new ArgumentException("Hypermedia download path does not exist", nameof(hypermedia));
+            }
+
+            bool isAllDone = true;
             foreach (var f in hypermedia.Files)
             {
                 if (!UnpinFile(f))
                 {
-                    return false;
+                    isAllDone = false;
+                }
+                if (isFileDeletionRequested)
+                {
+                    try
+                    {
+                        System.IO.File.Delete(f.InternalPath);
+                        if (System.IO.Directory.Exists(f.BlockStorePath))
+                        {
+                            try
+                            {
+                                System.IO.Directory.Delete(f.BlockStorePath, true);
+                            }
+                            catch
+                            {
+                                isAllDone = false;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        isAllDone = false;
+                    }
                 }
             }
             foreach (var d in hypermedia.Directories)
             {
                 if (!UnpinDirectory(d))
                 {
-                    return false;
+                    isAllDone = false;
+                }
+                if (isFileDeletionRequested)
+                {
+                    try
+                    {
+                        System.IO.Directory.Delete(d.InternalPath, true);
+                    }
+                    catch
+                    {
+                        isAllDone = false;
+                    }
+                }
+            }
+            foreach (var h in hypermedia.Hypermedias)
+            {
+                if (h.WrappingOptions == WrappingOptions.SubDirectory)
+                {
+                    if (!UnpinHypermedia(h))
+                    {
+                        isAllDone = false;
+                    }
+
+                    if (isFileDeletionRequested)
+                    {
+                        try
+                        {
+                            System.IO.Directory.Delete(h.InternalPath, true);
+                        }
+                        catch
+                        {
+                            isAllDone = false;
+                        }
+                    }
+                }
+                else
+                {
+                    if (!DeleteHypermedia(h, isFileDeletionRequested))
+                    {
+                        isAllDone = false;
+                    }
+                }
+            }
+
+            if (isFileDeletionRequested)
+            {
+                try
+                {
+                    if (hypermedia.WrappingOptions == WrappingOptions.SubDirectory)
+                    {
+                        System.IO.Directory.Delete(hypermedia.InternalPath, true);
+                    }
+                }
+                catch
+                {
+                    isAllDone = false;
+                }
+            }
+
+            return isAllDone;
+        }
+
+        private async Task<bool> UnpinHypermediaAsync(Models.Hypermedia hypermedia)
+        {
+            bool isAllUnpinned = true;
+            foreach (var f in hypermedia.Files)
+            {
+                if (!await UnpinFileAsync(f))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            foreach (var d in hypermedia.Directories)
+            {
+                if (!await UnpinDirectoryAsync(d))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            foreach (var h in hypermedia.Hypermedias)
+            {
+                if (!await UnpinHypermediaAsync(h))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            return isAllUnpinned;
+        }
+
+        private bool UnpinHypermedia(Models.Hypermedia hypermedia)
+        {
+            bool isAllUnpinned = true;
+            foreach (var f in hypermedia.Files)
+            {
+                if (!UnpinFile(f))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            foreach (var d in hypermedia.Directories)
+            {
+                if (!UnpinDirectory(d))
+                {
+                    isAllUnpinned = false;
                 }
             }
             foreach (var h in hypermedia.Hypermedias)
             {
                 if (!UnpinHypermedia(h))
                 {
-                    return false;
+                    isAllUnpinned = false;
                 }
             }
-            return true;
+            return isAllUnpinned;
+        }
+
+        private async Task<bool> UnpinDirectoryAsync(Models.Directory directory)
+        {
+            bool isAllUnpinned = true;
+            foreach (var f in directory.Files)
+            {
+                if (!await UnpinFileAsync(f))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            foreach (var d in directory.Directories)
+            {
+                if (!await UnpinDirectoryAsync(d))
+                {
+                    isAllUnpinned = false;
+                }
+            }
+            return isAllUnpinned;
         }
 
         private bool UnpinDirectory(Models.Directory directory)
         {
+            bool isAllUnpinned = true;
             foreach (var f in directory.Files)
             {
                 if (!UnpinFile(f))
                 {
-                    return false;
+                    isAllUnpinned = false;
                 }
             }
             foreach (var d in directory.Directories)
             {
                 if (!UnpinDirectory(d))
                 {
-                    return false;
+                    isAllUnpinned = false;
                 }
             }
-            return true;
+            return isAllUnpinned;
+        }
+
+        private async Task<bool> UnpinFileAsync(Models.File file)
+        {
+            if (!file.IsSingleBlock)
+            {
+                bool isAllUnpinned = true;
+                foreach (var b in file.Blocks)
+                {
+                    if (!await UnpinBlockAsync(b))
+                    {
+                        isAllUnpinned = false;
+                    }
+                }
+                return isAllUnpinned;
+            }
+            else
+            {
+                var r = await _manager.Engine().Pin.RemoveAsync(file.Path);
+                return r.First() == file.Path;
+            }
         }
 
         private bool UnpinFile(Models.File file)
         {
             if (!file.IsSingleBlock)
             {
+                bool isAllUnpinned = true;
                 foreach (var b in file.Blocks)
                 {
                     if (!UnpinBlock(b))
                     {
-                        return false;
+                        isAllUnpinned = false;
                     }
                 }
-                return true;
+                return isAllUnpinned;
             }
             else
             {
                 var r = _manager.Engine().Pin.RemoveAsync(file.Path).Result;
                 return r.First() == file.Path;
             }
+        }
+
+        private async Task<bool> UnpinBlockAsync(Models.Block block)
+        {
+            var r = await _manager.Engine().Pin.RemoveAsync(block.Path);
+            //TODO: Check if correctly unpinning
+            return r.First() == block.Path;
         }
 
         private bool UnpinBlock(Models.Block block)
@@ -965,29 +1161,13 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
 
         public bool ReconstructFile(Models.File file)
         {
-            System.IO.FileStream fileStream = null;
             List<byte> buffer = new List<byte>();
             foreach (var block in file.Blocks)
             {
                 buffer.Clear();
                 try
                 {
-                    using (var stream = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
-                    {
-                        bool isEndOfStream = false;
-                        while (!isEndOfStream)
-                        {
-                            int b = stream.ReadByte();
-                            if (b != -1)
-                            {
-                                buffer.Add((byte)b);
-                            }
-                            else
-                            {
-                                isEndOfStream = true;
-                            }
-                        }
-                    }
+                    buffer = ByteTools.GetByteFromFile(block.InternalPath);
                 }
                 catch
                 {
@@ -997,7 +1177,7 @@ namespace Ipfs.Manager.Services.Versions.FileSystemService
                 try
                 {
                     //TODO check if it works
-                    using (fileStream = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Append, System.IO.FileAccess.Write))
+                    using (var fileStream = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Append, System.IO.FileAccess.Write))
                     {
                         foreach (var b in buffer)
                         {

@@ -52,7 +52,11 @@ namespace Ipfs.Manager.Services
 
         bool DeleteHypermedia(Models.Hypermedia hypermedia);
 
+        Task<bool> DeleteHypermediaAsync(Models.Hypermedia hypermedia);
+
         bool DeleteHypermedia(Models.Hypermedia hypermedia, bool isFileDeletionRequested);
+
+        Task<bool> DeleteHypermediaAsync(Models.Hypermedia hypermedia, bool isFileDeletionRequested);
 
         Task<Models.Directory> UpdateDirectoryStatusAsync(Models.Directory directory);
 
