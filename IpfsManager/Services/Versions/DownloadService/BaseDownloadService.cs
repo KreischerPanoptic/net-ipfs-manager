@@ -19,6 +19,8 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
     class BaseDownloadService : IDownloadService
     {
         private Manager _manager;
+        private CancellationTokenSource _cancellation;
+        private CancellationToken _token;
 
         public BaseDownloadService(Manager manager)
         {
@@ -1425,7 +1427,40 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
         public bool StartAllDownloads()
         {
-            throw new NotImplementedException();
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            var threadSafeReferences = _manager.RealmService.ReadThreadSafeHypermedias();
+            List<Models.Hypermedia> hypermedias = new List<Models.Hypermedia>();
+            foreach (var t in threadSafeReferences)
+            {
+                hypermedias.Add(currentRealm.ResolveReference<Models.Hypermedia>(t));
+            }
+
+            bool isAllStarted = true;
+            foreach (var h in hypermedias)
+            {
+                if (h != null)
+                {
+                    Status status = Status.ReadyForDownload;
+                    if (h.Status == Status.Completed)
+                    {
+                        status = Status.Seeding;
+                    }
+                    currentRealm.Write(() =>
+                    {
+                        h.Status = status;
+                    });
+                    isAllStarted = true;
+                }
+                else
+                {
+                    isAllStarted = false;
+                }
+            }
+            return isAllStarted;
         }
 
         public bool StartDownloadService()
@@ -1435,12 +1470,65 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
         public bool StartHypermediaDownloading(string path)
         {
-            throw new NotImplementedException();
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            var threadSafeReference = _manager.RealmService.ReadThreadSafeHypermedia(path);
+            Models.Hypermedia hypermedia = currentRealm.ResolveReference<Models.Hypermedia>(threadSafeReference);
+            if (hypermedia != null)
+            {
+                Status status = Status.ReadyForDownload;
+                if (hypermedia.Status == Status.Completed)
+                {
+                    status = Status.Seeding;
+                }
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Status = status;
+                });
+                return true;
+            }
+            return false;
         }
 
         public bool StopAllDownloads()
         {
-            throw new NotImplementedException();
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            var threadSafeReferences = _manager.RealmService.ReadThreadSafeHypermedias();
+            List<Models.Hypermedia> hypermedias = new List<Models.Hypermedia>();
+            foreach (var t in threadSafeReferences)
+            {
+                hypermedias.Add(currentRealm.ResolveReference<Models.Hypermedia>(t));
+            }
+
+            bool isAllStopped = true;
+            foreach (var h in hypermedias)
+            {
+                if (h != null)
+                {
+                    Status status = Status.Stopped;
+                    if (h.Status == Status.Seeding)
+                    {
+                        status = Status.Completed;
+                    }
+                    currentRealm.Write(() =>
+                    {
+                        h.Status = status;
+                    });
+                    isAllStopped = true;
+                }
+                else
+                {
+                    isAllStopped = false;
+                }
+            }
+            return isAllStopped;
         }
 
         public bool StopDownloadService()
@@ -1450,7 +1538,28 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
         public bool StopHypermediaDownloading(string path)
         {
-            throw new NotImplementedException();
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            var threadSafeReference = _manager.RealmService.ReadThreadSafeHypermedia(path);
+            Models.Hypermedia hypermedia = currentRealm.ResolveReference<Models.Hypermedia>(threadSafeReference);
+
+            if(hypermedia != null)
+            {
+                Status status = Status.Stopped;
+                if(hypermedia.Status == Status.Seeding)
+                {
+                    status = Status.Completed;
+                }
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Status = status;
+                });
+                return true;
+            }
+            return false;
         }
     }
 }
