@@ -13,6 +13,7 @@ using System.Threading;
 using System.Diagnostics;
 using Ipfs.Manager.Tools.Results;
 using Ipfs.Manager.Tools.Results.EntityResults;
+using Ipfs.Manager.Tools.Queue;
 
 namespace Ipfs.Manager.Services.Versions.DownloadService
 {
@@ -1465,7 +1466,885 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
         public bool StartDownloadService()
         {
-            throw new NotImplementedException();
+            _cancellation = new CancellationTokenSource();
+            _token = _cancellation.Token;
+
+            Thread downloadsThread = new Thread(() => ProcessDownloads(_token))
+            {
+                IsBackground = true
+            };
+
+            try
+            {
+                downloadsThread.Start();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void ProcessDownloads(CancellationToken token)
+        {
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+
+            bool isFirstRun = true;
+            DownloadQueue queue = new DownloadQueue { Items = new Dictionary<int, DownloadItem>(), Status = DownloadQueueStatus.Created };
+            DownloadQueue prev = new DownloadQueue { Items = new Dictionary<int, DownloadItem>(), Status = DownloadQueueStatus.Created };
+            while (!token.IsCancellationRequested)
+            {
+                //TODO: check if deep copy is needed
+                prev = queue;
+                queue.Items.Clear();
+                var threadSafeReferences = _manager.RealmService.ReadThreadSafeHypermedias();
+                List<Models.Hypermedia> hypermedias = new List<Models.Hypermedia>();
+                foreach (var t in threadSafeReferences)
+                {
+                    hypermedias.Add(currentRealm.ResolveReference<Models.Hypermedia>(t));
+                }
+
+                //TODO: check if order is correct
+                hypermedias = hypermedias.OrderBy(h => h.Priority).ToList();
+                hypermedias = hypermedias.OrderBy(h => h.QueuePosition).ToList();
+
+                if (hypermedias.Count > 0)
+                {
+                    for (int i = 0; i < hypermedias.Count; ++i)
+                    {
+                        DownloadItemStatus status = DownloadItemStatus.Ignored;
+                        if (i < 3) //TODO: check to number in environment service
+                        {
+                            status = DownloadItemStatus.Prepared;
+                        }
+                        else
+                        {
+                            status = DownloadItemStatus.Waiting;
+                        }
+
+                        if(hypermedias[i].Priority ==  Priority.Ignore)
+                        {
+                            status = DownloadItemStatus.Ignored;
+                        }
+
+                        if 
+                        (
+                               hypermedias[i].Status == Status.Completed
+                            || hypermedias[i].Status == Status.Error
+                            || hypermedias[i].Status == Status.Seeding
+                            || hypermedias[i].Status == Status.Stopped
+                        )
+                        {
+                            status = DownloadItemStatus.Ignored;
+                        }
+
+                        queue.Items.Add(i, new DownloadItem
+                        {
+                            Item = ThreadSafeReference.Create<Models.Hypermedia>(hypermedias[i]),
+                            Status = status
+                        });
+                    }
+                    queue.Status = DownloadQueueStatus.Prepared;
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (!isFirstRun)
+                {
+                    //TODO: add checking of queue;
+                }
+                else
+                {
+                    foreach (var item in queue.Items)
+                    {
+                        if (item.Value.Status == DownloadItemStatus.Prepared)
+                        {
+                            //TODO: add cancellation token;
+                            Thread downloadThread = new Thread(() => DownloadHypermedia(item.Value.Item))
+                            {
+                                IsBackground = true
+                            };
+                            downloadThread.Start();
+                            item.Value.Status = DownloadItemStatus.Launched;
+                        }
+                    }
+
+                    queue.Status = DownloadQueueStatus.Processing;
+                    isFirstRun = false;
+                }
+            }
+            //TODO: add cleaning of queue;
+        }
+
+        private void DownloadHypermedia(ThreadSafeReference.Object<Models.Hypermedia> hypermediaReference)
+        {
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            Models.Hypermedia hypermedia = currentRealm.ResolveReference<Models.Hypermedia>(hypermediaReference);
+            //TODO: check if deep copy is needed
+            Models.Hypermedia newHypermedia = hypermedia;
+
+            int fileCount = hypermedia.Files.Count;
+            int completedFilesCount = 0;
+            int directoryCount = hypermedia.Directories.Count;
+            int completedDirectoriesCount = 0;
+            int hypermediaCount = hypermedia.Hypermedias.Count;
+            int completedHypermediasCount = 0;
+            for (int i = 0; i < hypermedia.Files.Count; ++i)
+            {
+                newHypermedia = hypermedia;
+                var fileReference = ThreadSafeReference.Create<Models.File>(newHypermedia.Files[i]);
+                DownloadFile(fileReference);
+                newHypermedia = _manager.FileSystemService.UpdateStatus(newHypermedia, newHypermedia.Status);
+                Models.File file = currentRealm.ResolveReference<Models.File>(fileReference);
+                if (file.Status != Status.Error)
+                {
+                    ++completedFilesCount;
+                }
+
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Files.Clear();
+                    foreach (var f in newHypermedia.Files)
+                    {
+                        hypermedia.Files.Add(f);
+                    }
+                    hypermedia.Encoding = newHypermedia.Encoding;
+                    hypermedia.Directories.Clear();
+                    foreach (var d in newHypermedia.Directories)
+                    {
+                        hypermedia.Directories.Add(d);
+                    }
+                    hypermedia.Hash = newHypermedia.Hash;
+                    hypermedia.Hypermedias.Clear();
+                    foreach (var h in newHypermedia.Hypermedias)
+                    {
+                        hypermedia.Hypermedias.Add(h);
+                    }
+                    hypermedia.Index = newHypermedia.Index;
+                    hypermedia.InternalPath = newHypermedia.InternalPath;
+                    hypermedia.Name = newHypermedia.Name;
+                    hypermedia.Parent = newHypermedia.Parent;
+                    hypermedia.Path = newHypermedia.Path;
+                    hypermedia.Priority = newHypermedia.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = hypermedia.Progress;
+                    progress.Report((completedFilesCount + completedDirectoriesCount + completedHypermediasCount) / (fileCount + directoryCount + hypermediaCount) * 100);
+                    //
+                    hypermedia.Size = newHypermedia.Size;
+                    hypermedia.Status = newHypermedia.Status;
+                });
+            }
+            for (int i = 0; i < hypermedia.Directories.Count; ++i)
+            {
+                newHypermedia = hypermedia;
+                var directoryReference = ThreadSafeReference.Create<Models.Directory>(newHypermedia.Directories[i]);
+                DownloadDirectory(directoryReference);
+                newHypermedia = _manager.FileSystemService.UpdateStatus(newHypermedia, newHypermedia.Status);
+                Models.Directory directory = currentRealm.ResolveReference<Models.Directory>(directoryReference);
+                if (directory.Status != Status.Error)
+                {
+                    ++completedDirectoriesCount;
+                }
+
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Files.Clear();
+                    foreach (var f in newHypermedia.Files)
+                    {
+                        hypermedia.Files.Add(f);
+                    }
+                    hypermedia.Encoding = newHypermedia.Encoding;
+                    hypermedia.Directories.Clear();
+                    foreach (var d in newHypermedia.Directories)
+                    {
+                        hypermedia.Directories.Add(d);
+                    }
+                    hypermedia.Hash = newHypermedia.Hash;
+                    hypermedia.Hypermedias.Clear();
+                    foreach (var h in newHypermedia.Hypermedias)
+                    {
+                        hypermedia.Hypermedias.Add(h);
+                    }
+                    hypermedia.Index = newHypermedia.Index;
+                    hypermedia.InternalPath = newHypermedia.InternalPath;
+                    hypermedia.Name = newHypermedia.Name;
+                    hypermedia.Parent = newHypermedia.Parent;
+                    hypermedia.Path = newHypermedia.Path;
+                    hypermedia.Priority = newHypermedia.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = hypermedia.Progress;
+                    progress.Report((completedFilesCount + completedDirectoriesCount + completedHypermediasCount) / (fileCount + directoryCount + hypermediaCount) * 100);
+                    //
+                    hypermedia.Size = newHypermedia.Size;
+                    hypermedia.Status = newHypermedia.Status;
+                });
+            }
+            for (int i = 0; i < hypermedia.Hypermedias.Count; ++i)
+            {
+                newHypermedia = hypermedia;
+                var internalHypermediaReference = ThreadSafeReference.Create<Models.Hypermedia>(newHypermedia.Hypermedias[i]);
+                DownloadHypermedia(internalHypermediaReference);
+                newHypermedia = _manager.FileSystemService.UpdateStatus(newHypermedia, newHypermedia.Status);
+                Models.Hypermedia intrnalHypermedia = currentRealm.ResolveReference<Models.Hypermedia>(internalHypermediaReference);
+                if (intrnalHypermedia.Status != Status.Error)
+                {
+                    ++completedHypermediasCount;
+                }
+
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Files.Clear();
+                    foreach (var f in newHypermedia.Files)
+                    {
+                        hypermedia.Files.Add(f);
+                    }
+                    hypermedia.Encoding = newHypermedia.Encoding;
+                    hypermedia.Directories.Clear();
+                    foreach (var d in newHypermedia.Directories)
+                    {
+                        hypermedia.Directories.Add(d);
+                    }
+                    hypermedia.Hash = newHypermedia.Hash;
+                    hypermedia.Hypermedias.Clear();
+                    foreach (var h in newHypermedia.Hypermedias)
+                    {
+                        hypermedia.Hypermedias.Add(h);
+                    }
+                    hypermedia.Index = newHypermedia.Index;
+                    hypermedia.InternalPath = newHypermedia.InternalPath;
+                    hypermedia.Name = newHypermedia.Name;
+                    hypermedia.Parent = newHypermedia.Parent;
+                    hypermedia.Path = newHypermedia.Path;
+                    hypermedia.Priority = newHypermedia.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = hypermedia.Progress;
+                    progress.Report((completedFilesCount + completedDirectoriesCount + completedHypermediasCount) / (fileCount + directoryCount + hypermediaCount) * 100);
+                    //
+                    hypermedia.Size = newHypermedia.Size;
+                    hypermedia.Status = newHypermedia.Status;
+                });
+            }
+
+            bool isCompleted = true;
+            if (newHypermedia.Status == Status.Error)
+            {
+                isCompleted = false;
+            }
+            foreach (var f in newHypermedia.Files)
+            {
+                if (f.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+            }
+            foreach (var d in newHypermedia.Directories)
+            {
+                if (d.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+            }
+            foreach (var h in newHypermedia.Hypermedias)
+            {
+                if (h.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if (isCompleted)
+            {
+                newHypermedia = _manager.FileSystemService.UpdateStatus(newHypermedia, newHypermedia.Status);
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Completed = DateTimeOffset.Now;
+                    hypermedia.Files.Clear();
+                    foreach (var f in newHypermedia.Files)
+                    {
+                        hypermedia.Files.Add(f);
+                    }
+                    hypermedia.Encoding = newHypermedia.Encoding;
+                    hypermedia.Directories.Clear();
+                    foreach (var d in newHypermedia.Directories)
+                    {
+                        hypermedia.Directories.Add(d);
+                    }
+                    hypermedia.Hash = newHypermedia.Hash;
+                    hypermedia.Hypermedias.Clear();
+                    foreach(var h in newHypermedia.Hypermedias)
+                    {
+                        hypermedia.Hypermedias.Add(h);
+                    }
+                    hypermedia.Index = newHypermedia.Index;
+                    hypermedia.InternalPath = newHypermedia.InternalPath;
+                    hypermedia.Name = newHypermedia.Name;
+                    hypermedia.Parent = newHypermedia.Parent;
+                    hypermedia.Path = newHypermedia.Path;
+                    hypermedia.Priority = newHypermedia.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = hypermedia.Progress;
+                    progress.Report(100);
+                    //
+                    hypermedia.Size = newHypermedia.Size;
+                    hypermedia.Status = newHypermedia.Status;
+                });
+            }
+            else
+            {
+                newHypermedia = _manager.FileSystemService.UpdateStatus(newHypermedia, newHypermedia.Status);
+                currentRealm.Write(() =>
+                {
+                    hypermedia.Completed = DateTimeOffset.Now;
+                    hypermedia.Files.Clear();
+                    foreach (var f in newHypermedia.Files)
+                    {
+                        hypermedia.Files.Add(f);
+                    }
+                    hypermedia.Encoding = newHypermedia.Encoding;
+                    hypermedia.Directories.Clear();
+                    foreach (var d in newHypermedia.Directories)
+                    {
+                        hypermedia.Directories.Add(d);
+                    }
+                    hypermedia.Hash = newHypermedia.Hash;
+                    hypermedia.Hypermedias.Clear();
+                    foreach (var h in newHypermedia.Hypermedias)
+                    {
+                        hypermedia.Hypermedias.Add(h);
+                    }
+                    hypermedia.Index = newHypermedia.Index;
+                    hypermedia.InternalPath = newHypermedia.InternalPath;
+                    hypermedia.Name = newHypermedia.Name;
+                    hypermedia.Parent = newHypermedia.Parent;
+                    hypermedia.Path = newHypermedia.Path;
+                    hypermedia.Priority = newHypermedia.Priority;
+                    hypermedia.Size = newHypermedia.Size;
+                    hypermedia.Status = Status.Error;
+                });
+            }
+        }
+
+        private void DownloadDirectory(ThreadSafeReference.Object<Models.Directory> directoryReference)
+        {
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            Models.Directory directory = currentRealm.ResolveReference<Models.Directory>(directoryReference);
+            //TODO: check if deep copy is needed
+            Models.Directory newDirectory = directory;
+
+            int fileCount = directory.Files.Count;
+            int completedFilesCount = 0;
+            int directoryCount = directory.Directories.Count;
+            int completedDirectoriesCount = 0;
+            for (int i = 0; i < directory.Files.Count; ++i)
+            {
+                newDirectory = directory;
+                var fileReference = ThreadSafeReference.Create<Models.File>(newDirectory.Files[i]);
+                DownloadFile(fileReference);
+                newDirectory = _manager.FileSystemService.UpdateDirectoryStatus(newDirectory);
+                Models.File file = currentRealm.ResolveReference<Models.File>(fileReference);
+                if (file.Status != Status.Error)
+                {
+                    ++completedFilesCount;
+                }
+                //TODO: check if it won't break for loop
+                currentRealm.Write(() =>
+                {
+                    directory.Attributes = newDirectory.Attributes;
+                    directory.Files.Clear();
+                    foreach (var f in newDirectory.Files)
+                    {
+                        directory.Files.Add(f);
+                    }
+                    directory.Directories.Clear();
+                    foreach (var d in newDirectory.Directories)
+                    {
+                        directory.Directories.Add(d);
+                    }
+                    directory.Hash = newDirectory.Hash;
+                    directory.Index = newDirectory.Index;
+                    directory.InternalPath = newDirectory.InternalPath;
+                    directory.LastModifiedDateTime = newDirectory.LastModifiedDateTime;
+                    directory.Name = newDirectory.Name;
+                    directory.Parent = newDirectory.Parent;
+                    directory.Path = newDirectory.Path;
+                    directory.Priority = newDirectory.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = directory.Progress;
+                    progress.Report((completedFilesCount + completedDirectoriesCount) / (fileCount + directoryCount) * 100);
+                    //
+                    directory.Size = newDirectory.Size;
+                    directory.Status = newDirectory.Status;
+                });
+            }
+            for (int i = 0; i < directory.Directories.Count; ++i)
+            {
+                newDirectory = directory;
+                var internalDirectoryReference = ThreadSafeReference.Create<Models.Directory>(newDirectory.Directories[i]);
+                DownloadDirectory(internalDirectoryReference);
+                newDirectory = _manager.FileSystemService.UpdateDirectoryStatus(newDirectory);
+                Models.Directory internalDirectory = currentRealm.ResolveReference<Models.Directory>(internalDirectoryReference);
+                if (internalDirectory.Status != Status.Error)
+                {
+                    ++completedDirectoriesCount;
+                }
+                //TODO: check if it won't break for loop
+                currentRealm.Write(() =>
+                {
+                    directory.Attributes = newDirectory.Attributes;
+                    directory.Files.Clear();
+                    foreach (var f in newDirectory.Files)
+                    {
+                        directory.Files.Add(f);
+                    }
+                    directory.Directories.Clear();
+                    foreach (var d in newDirectory.Directories)
+                    {
+                        directory.Directories.Add(d);
+                    }
+                    directory.Hash = newDirectory.Hash;
+                    directory.Index = newDirectory.Index;
+                    directory.InternalPath = newDirectory.InternalPath;
+                    directory.LastModifiedDateTime = newDirectory.LastModifiedDateTime;
+                    directory.Name = newDirectory.Name;
+                    directory.Parent = newDirectory.Parent;
+                    directory.Path = newDirectory.Path;
+                    directory.Priority = newDirectory.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = directory.Progress;
+                    progress.Report((completedFilesCount + completedDirectoriesCount) / (fileCount + directoryCount) * 100);
+                    //
+                    directory.Size = newDirectory.Size;
+                    directory.Status = newDirectory.Status;
+                });
+            }
+
+            bool isCompleted = true;
+            if (newDirectory.Status == Status.Error)
+            {
+                isCompleted = false;
+            }
+            foreach (var f in newDirectory.Files)
+            {
+                if (f.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+            }
+            foreach (var d in newDirectory.Directories)
+            {
+                if (d.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+            }
+
+            if (isCompleted)
+            {
+                newDirectory = _manager.FileSystemService.UpdateDirectoryStatus(newDirectory);
+                currentRealm.Write(() =>
+                {
+                    directory.Attributes = newDirectory.Attributes;
+                    directory.Files.Clear();
+                    foreach (var f in newDirectory.Files)
+                    {
+                        directory.Files.Add(f);
+                    }
+                    directory.Directories.Clear();
+                    foreach (var d in newDirectory.Directories)
+                    {
+                        directory.Directories.Add(d);
+                    }
+                    directory.Hash = newDirectory.Hash;
+                    directory.Index = newDirectory.Index;
+                    directory.InternalPath = newDirectory.InternalPath;
+                    directory.LastModifiedDateTime = newDirectory.LastModifiedDateTime;
+                    directory.Name = newDirectory.Name;
+                    directory.Parent = newDirectory.Parent;
+                    directory.Path = newDirectory.Path;
+                    directory.Priority = newDirectory.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = directory.Progress;
+                    progress.Report(100);
+                    //
+                    directory.Size = newDirectory.Size;
+                    directory.Status = newDirectory.Status;
+                });
+            }
+            else
+            {
+                currentRealm.Write(() =>
+                {
+                    directory.Attributes = newDirectory.Attributes;
+                    directory.Files.Clear();
+                    foreach (var f in newDirectory.Files)
+                    {
+                        directory.Files.Add(f);
+                    }
+                    directory.Directories.Clear();
+                    foreach (var d in newDirectory.Directories)
+                    {
+                        directory.Directories.Add(d);
+                    }
+                    directory.Hash = newDirectory.Hash;
+                    directory.Index = newDirectory.Index;
+                    directory.InternalPath = newDirectory.InternalPath;
+                    directory.LastModifiedDateTime = newDirectory.LastModifiedDateTime;
+                    directory.Name = newDirectory.Name;
+                    directory.Parent = newDirectory.Parent;
+                    directory.Path = newDirectory.Path;
+                    directory.Priority = newDirectory.Priority;
+                    directory.Size = newDirectory.Size;
+                    directory.Status = Status.Error;
+                });
+            }
+        }
+
+        private void DownloadFile(ThreadSafeReference.Object<Models.File> fileReference)
+        {
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            Models.File file = currentRealm.ResolveReference<Models.File>(fileReference);
+            //TODO: check if deep copy is needed
+            Models.File newFile = file;
+
+            if (file.IsSingleBlock)
+            {
+                Task<System.IO.Stream> fileStream = null;
+                CancellationToken token;
+                do
+                {
+                    CancellationTokenSource source = new CancellationTokenSource();
+                    token = source.Token;
+                    //TODO: check if setting compression flag to false is working correctly within Ipfs.Engine;
+                    fileStream = _manager.Engine().FileSystem.GetAsync(file.Path, false, token);
+
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    bool isTaskCompleted = false;
+
+                    while (!isTaskCompleted)
+                    {
+                        if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
+                        {
+                            currentRealm.Write(() =>
+                            {
+                                file.Status = Status.Error;
+                            });
+                        }
+
+                        if (fileStream.Status == TaskStatus.RanToCompletion)
+                        {
+                            isTaskCompleted = true;
+                            break;
+                        }
+                    }
+                }
+                while (token.IsCancellationRequested);
+
+                try
+                {
+                    using (var fs = new System.IO.FileStream(file.InternalPath, System.IO.FileMode.Open))
+                    {
+                        fileStream.Result.CopyTo(fs);
+                    }
+                    fileStream.Result.Close();
+                }
+                catch (Exception e)
+                {
+                    currentRealm.Write(() =>
+                    {
+                        file.Status = Status.Error;
+                    });
+                }
+
+                newFile = _manager.FileSystemService.UpdateFileStatus(file);
+                currentRealm.Write(() =>
+                {
+                    file.Attributes = newFile.Attributes;
+                    file.Blocks.Clear();
+                    foreach(var b in newFile.Blocks)
+                    {
+                        file.Blocks.Add(b);
+                    }
+                    file.BlockStorePath = newFile.BlockStorePath;
+                    file.Extension = newFile.Extension;
+                    file.Hash = newFile.Hash;
+                    file.Index = newFile.Index;
+                    file.InternalPath = newFile.InternalPath;
+                    file.IsSingleBlock = newFile.IsSingleBlock;
+                    file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                    file.Name = newFile.Name;
+                    file.Parent = newFile.Parent;
+                    file.Path = newFile.Path;
+                    file.Priority = newFile.Priority;
+                    //TODO: check if such progress reporting works within Realm DB
+                    IProgress<Double> progress = file.Progress;
+                    progress.Report(newFile.Status != Status.Error ? 100 : 0);
+                    //
+                    file.Size = newFile.Size;
+                    file.Status = newFile.Status;
+                });
+            }
+            else
+            {
+                int blockCount = file.Blocks.Count;
+                int completedBlocksCount = 0;
+                for (int i = 0; i < file.Blocks.Count; ++i)
+                {
+                    newFile = file;
+                    var blockReference = ThreadSafeReference.Create<Models.Block>(newFile.Blocks[i]);
+                    DownloadBlock(blockReference);
+                    newFile = _manager.FileSystemService.UpdateFileStatus(newFile);
+                    Models.Block block = currentRealm.ResolveReference<Models.Block>(blockReference);
+                    if(block.Status != Status.Error)
+                    {
+                        ++completedBlocksCount;
+                    }
+                    //TODO: check if it won't break for loop
+                    currentRealm.Write(() =>
+                    {
+                        file.Attributes = newFile.Attributes;
+                        file.Blocks.Clear();
+                        foreach (var b in newFile.Blocks)
+                        {
+                            file.Blocks.Add(b);
+                        }
+                        file.BlockStorePath = newFile.BlockStorePath;
+                        file.Extension = newFile.Extension;
+                        file.Hash = newFile.Hash;
+                        file.Index = newFile.Index;
+                        file.InternalPath = newFile.InternalPath;
+                        file.IsSingleBlock = newFile.IsSingleBlock;
+                        file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                        file.Name = newFile.Name;
+                        file.Parent = newFile.Parent;
+                        file.Path = newFile.Path;
+                        file.Priority = newFile.Priority;
+                        //TODO: check if such progress reporting works within Realm DB
+                        IProgress<Double> progress = file.Progress;
+                        progress.Report(completedBlocksCount / blockCount * 100);
+                        //
+                        file.Size = newFile.Size;
+                        file.Status = newFile.Status;
+                    });
+                }
+
+                bool isCompleted = true;
+                if(newFile.Status == Status.Error)
+                {
+                    isCompleted = false;
+                }
+                foreach(var b in newFile.Blocks)
+                {
+                    if(b.Status == Status.Error)
+                    {
+                        isCompleted = false;
+                    }
+                }
+
+                if (isCompleted)
+                {
+                    newFile = _manager.FileSystemService.UpdateFileStatus(newFile);
+                    if (newFile.Status == Status.ReadyForReconstruction)
+                    {
+                        if (_manager.FileSystemService.ReconstructFile(newFile))
+                        {
+                            newFile = _manager.FileSystemService.UpdateFileStatus(newFile);
+                            currentRealm.Write(() =>
+                            {
+                                file.Attributes = newFile.Attributes;
+                                file.Blocks.Clear();
+                                foreach (var b in newFile.Blocks)
+                                {
+                                    file.Blocks.Add(b);
+                                }
+                                file.BlockStorePath = newFile.BlockStorePath;
+                                file.Extension = newFile.Extension;
+                                file.Hash = newFile.Hash;
+                                file.Index = newFile.Index;
+                                file.InternalPath = newFile.InternalPath;
+                                file.IsSingleBlock = newFile.IsSingleBlock;
+                                file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                                file.Name = newFile.Name;
+                                file.Parent = newFile.Parent;
+                                file.Path = newFile.Path;
+                                file.Priority = newFile.Priority;
+                                //TODO: check if such progress reporting works within Realm DB
+                                IProgress<Double> progress = file.Progress;
+                                progress.Report(100);
+                                //
+                                file.Size = newFile.Size;
+                                file.Status = newFile.Status;
+                            });
+                        }
+                        else
+                        {
+                            currentRealm.Write(() =>
+                            {
+                                file.Attributes = newFile.Attributes;
+                                file.Blocks.Clear();
+                                foreach (var b in newFile.Blocks)
+                                {
+                                    file.Blocks.Add(b);
+                                }
+                                file.BlockStorePath = newFile.BlockStorePath;
+                                file.Extension = newFile.Extension;
+                                file.Hash = newFile.Hash;
+                                file.Index = newFile.Index;
+                                file.InternalPath = newFile.InternalPath;
+                                file.IsSingleBlock = newFile.IsSingleBlock;
+                                file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                                file.Name = newFile.Name;
+                                file.Parent = newFile.Parent;
+                                file.Path = newFile.Path;
+                                file.Priority = newFile.Priority;
+                                file.Size = newFile.Size;
+                                file.Status = Status.Error;
+                            });
+                        }
+                    }
+                    else
+                    {
+                        currentRealm.Write(() =>
+                        {
+                            file.Attributes = newFile.Attributes;
+                            file.Blocks.Clear();
+                            foreach (var b in newFile.Blocks)
+                            {
+                                file.Blocks.Add(b);
+                            }
+                            file.BlockStorePath = newFile.BlockStorePath;
+                            file.Extension = newFile.Extension;
+                            file.Hash = newFile.Hash;
+                            file.Index = newFile.Index;
+                            file.InternalPath = newFile.InternalPath;
+                            file.IsSingleBlock = newFile.IsSingleBlock;
+                            file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                            file.Name = newFile.Name;
+                            file.Parent = newFile.Parent;
+                            file.Path = newFile.Path;
+                            file.Priority = newFile.Priority;
+                            file.Size = newFile.Size;
+                            file.Status = Status.Error;
+                        });
+                    }
+                }
+                else
+                {
+                    currentRealm.Write(() =>
+                    {
+                        file.Attributes = newFile.Attributes;
+                        file.Blocks.Clear();
+                        foreach (var b in newFile.Blocks)
+                        {
+                            file.Blocks.Add(b);
+                        }
+                        file.BlockStorePath = newFile.BlockStorePath;
+                        file.Extension = newFile.Extension;
+                        file.Hash = newFile.Hash;
+                        file.Index = newFile.Index;
+                        file.InternalPath = newFile.InternalPath;
+                        file.IsSingleBlock = newFile.IsSingleBlock;
+                        file.LastModifiedDateTime = newFile.LastModifiedDateTime;
+                        file.Name = newFile.Name;
+                        file.Parent = newFile.Parent;
+                        file.Path = newFile.Path;
+                        file.Priority = newFile.Priority;
+                        file.Size = newFile.Size;
+                        file.Status = Status.Error;
+                    });
+                }
+            }
+        }
+
+        private void DownloadBlock(ThreadSafeReference.Object<Models.Block> blockReference)
+        {
+            if (!_manager.RealmService.IsRealmInitialized())
+            {
+                throw new NullReferenceException("Realm is not initialized.");
+            }
+            Realm currentRealm = Realm.GetInstance(_manager.RealmService.GetRealmConfiguration());
+            Models.Block block = currentRealm.ResolveReference<Models.Block>(blockReference);
+            //TODO: check if deep copy is needed
+            Models.Block newBlock = block;
+
+            Task<System.IO.Stream> blockStream = null;
+            CancellationToken token;
+            do
+            {
+                CancellationTokenSource source = new CancellationTokenSource();
+                token = source.Token;
+                //TODO: check if setting compression flag to false is working correctly within Ipfs.Engine;
+                blockStream = _manager.Engine().FileSystem.GetAsync(block.Path, false, token);
+
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+                bool isTaskCompleted = false;
+
+                while (!isTaskCompleted)
+                {
+                    if (stopwatch.Elapsed >= TimeSpan.FromSeconds(120))
+                    {
+                        currentRealm.Write(() =>
+                        {
+                            block.Status = Status.Error;
+                        });
+                    }
+
+                    if (blockStream.Status == TaskStatus.RanToCompletion)
+                    {
+                        isTaskCompleted = true;
+                        break;
+                    }
+                }
+            }
+            while (token.IsCancellationRequested);
+
+            try
+            {
+                using (var fs = new System.IO.FileStream(block.InternalPath, System.IO.FileMode.Open))
+                {
+                    blockStream.Result.CopyTo(fs);
+                }
+                blockStream.Result.Close();
+            }
+            catch (Exception e)
+            {
+                currentRealm.Write(() =>
+                {
+                    block.Status = Status.Error;
+                });
+            }
+
+            newBlock = _manager.FileSystemService.UpdateBlockStatus(block);
+            currentRealm.Write(() =>
+            {
+                block.Hash = newBlock.Hash;
+                block.Index = newBlock.Index;
+                block.InternalPath = newBlock.InternalPath;
+                block.Parent = newBlock.Parent;
+                block.Path = newBlock.Path;
+                block.Priority = newBlock.Priority;
+                block.Size = newBlock.Size;
+                block.Status = newBlock.Status;
+            });
         }
 
         public bool StartHypermediaDownloading(string path)
@@ -1533,7 +2412,15 @@ namespace Ipfs.Manager.Services.Versions.DownloadService
 
         public bool StopDownloadService()
         {
-            throw new NotImplementedException();
+            try
+            {
+                _cancellation.Cancel();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public bool StopHypermediaDownloading(string path)
